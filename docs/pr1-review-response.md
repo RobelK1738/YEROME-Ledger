@@ -11,7 +11,7 @@ No live records, secrets, production deployment, or real money were used.
 | 3. Impossible or uncorrectable receipt | Require gross to equal net plus every withholding and other deduction line, then post through an audited RPC. Corrections append immutable snapshots and reason. | Unit and disposable SQL tests reject imbalance and prove correction history. |
 | 4. Historical commission status | Added effective-dated job and referral status events; full-month commission checks the earned month rather than current status. Unknown legacy history is not invented. | Disposable SQL ended-after-month and midmonth-pause fixtures. |
 | 5. Referral dates | Projection, referrer view, commission posting and settlement check start/end dates, status history and verified agreement. | Disposable future and expired referral assertions. |
-| 6. Failed preview / hosted roles | Consolidated API routes into one Vercel function to fit the Hobby function limit reported by the failed deployment. | **Pending after push:** successful Vercel preview, distinct hosted Admin/Miki/regular-person Auth and PostgREST tests against an isolated Supabase project. Local role simulation is not hosted evidence. |
+| 6. Failed preview / hosted roles | Consolidated API routes into one Vercel function to fit the Hobby function limit reported by the failed deployment. | Vercel deployed `9ae98d3` as **READY** and GitHub's Vercel status is successful; the preview serves the app and unknown API route returns 404. Distinct hosted Admin/Miki/regular-person Auth and PostgREST tests against an isolated Supabase project remain pending. Local role simulation is not hosted evidence. |
 | 7. Salary cadence | Salary employer check uses annual gross divided by configured periods per year; normalized two-week equivalent remains annual gross divided by 26 and is separately labeled. | 27, 52 and 12 period tests. |
 | 8. Pause/resume and referral replacement | Added atomic, audited prospective job status and referral end/replace RPCs and Admin controls. Referral end is effective today; scheduled future end is withheld until an active-slot lifecycle is designed. | Disposable status/replace tests and future-end guard. |
 | 9. Changed terms projected all year | Annual tax liability and reconciliation gap are marked unavailable where multiple effective compensation terms overlap the year. Historical received cash and withholding remain visible. | Unit test covers term change. Full segmented historic tax projection remains a separate engineering task. |
@@ -20,7 +20,9 @@ No live records, secrets, production deployment, or real money were used.
 
 - Rehearse new migrations and all three role flows on a separate hosted Supabase
   project with synthetic identities and data. Confirm Vercel preview routes and
-  GitHub checks.
+  GitHub checks. Current Vercel Supabase variables target both production and
+  preview, so do not use this preview for test writes until branch-specific
+  isolated settings are configured without exposing secrets.
 - Record the proposed settlement basis, proration, losses, commission timing,
   legal charge descriptions and payment custody decisions in signed agreements
   before adding any enabled settlement policy or moving money.
