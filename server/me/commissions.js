@@ -1,4 +1,4 @@
-import { verifiedPrincipal, sendApiError } from '../_lib/v2.js';
+import { verifiedPrincipal, sendApiError, eligibleJobCountAsOf } from '../_lib/v2.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed.' });
@@ -7,18 +7,17 @@ export default async function handler(req, res) {
     if (!principal.ok) return res.status(principal.status).json({ error: 'Not authorized.' });
     if (principal.role !== 'owner') return res.status(403).json({ error: 'Owner account required.' });
     const { db, ownerId } = principal;
+    const asOf = new Date().toISOString().slice(0, 10);
     const { data: referrals, error } = await db.from('referrals')
       .select('id,referred_owner_id,commission_basis_type,flat_amount_cents,active,name_visible_to_referrer')
       .eq('referrer_owner_id', ownerId).eq('active', true)
-      .eq('commission_basis_type', 'flat_per_active_job_month');
+      .eq('commission_basis_type', 'flat_per_active_job_month')
+      .lte('start_date', asOf).or(`end_date.is.null,end_date.gte.${asOf}`);
     if (error) throw error;
     const rows = [];
-    const asOf = new Date().toISOString().slice(0, 10);
     for (const referral of referrals || []) {
-      const [{ count, error: countError }, nameResult, accrualResult, agreementResult] = await Promise.all([
-        db.from('jobs').select('id', { count: 'exact', head: true })
-          .eq('owner_id', referral.referred_owner_id).eq('status', 'active')
-          .lte('start_date', asOf).or(`end_date.is.null,end_date.gte.${asOf}`),
+      const [eligibleJobCount, nameResult, accrualResult, agreementResult] = await Promise.all([
+        eligibleJobCountAsOf(db, referral.referred_owner_id, asOf),
         referral.name_visible_to_referrer
           ? db.from('owners').select('display_name').eq('id', referral.referred_owner_id).maybeSingle()
           : Promise.resolve({ data: null, error: null }),
@@ -28,8 +27,8 @@ export default async function handler(req, res) {
           .eq('partnership', 'MIKI_REFERRAL_2_WAY').not('verified_at', 'is', null)
           .lte('effective_from', asOf).or(`effective_to.is.null,effective_to.gte.${asOf}`).limit(1),
       ]);
-      if (countError || nameResult.error || accrualResult.error || agreementResult.error) {
-        throw countError || nameResult.error || accrualResult.error || agreementResult.error;
+      if (nameResult.error || accrualResult.error || agreementResult.error) {
+        throw nameResult.error || accrualResult.error || agreementResult.error;
       }
       if (!agreementResult.data?.length) continue;
       const accruals = accrualResult.data || [];
@@ -40,7 +39,6 @@ export default async function handler(req, res) {
         : { data: [], error: null };
       if (paymentResult.error) throw paymentResult.error;
       const payments = paymentResult.data || [];
-      const eligibleJobCount = Number(count) || 0;
       const needsContractReview = referral.commission_basis_type !== 'flat_per_active_job_month';
       const ratePerJobCents = needsContractReview ? 0 : Number(referral.flat_amount_cents ?? 20000);
       const events = accruals.map((accrual) => {

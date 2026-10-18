@@ -1,5 +1,6 @@
 import { adminClient, requireAdmin, readJsonBody, serverAudit } from '../_lib/supabaseAdmin.js';
 import { generatePayDates } from '../../src/lib/formatting/dates.js';
+import { validatedReceipt } from '../../src/lib/finance-v2/receipt.js';
 
 const INPUT_FIELDS = {
   actualGrossCents: 'actual_gross_cents',
@@ -39,34 +40,23 @@ export default async function handler(req, res) {
       return res.status(200).json({ scheduledDates: dates.length });
     }
     if (!body.paycheckId) return res.status(400).json({ error: 'Paycheck ID required.' });
-    const patch = {};
+    let receipt;
+    try { receipt = validatedReceipt(body); }
+    catch (invalid) { return res.status(400).json({ error: invalid.message }); }
+    const snapshot = {};
     for (const [input, column] of Object.entries(INPUT_FIELDS)) {
-      if (body[input] == null || body[input] === '') continue;
-      const number = Number(body[input]);
-      const valid = input === 'actualHours'
-        ? Number.isFinite(number) && number >= 0
-        : Number.isSafeInteger(number) && number >= 0;
-      if (!valid) return res.status(400).json({ error: `Invalid ${input}.` });
-      patch[column] = number;
+      if (receipt[input] != null) snapshot[column] = receipt[input];
     }
-    if (patch.actual_gross_cents == null || patch.actual_net_received_cents == null) {
-      return res.status(400).json({ error: 'Record actual gross and net deposit.' });
+    const correctionReason = body.action === 'correct' ? String(body.reason || '').trim() : null;
+    if (body.action === 'correct' && !correctionReason) {
+      return res.status(400).json({ error: 'A correction reason is required.' });
     }
-    if (['federal_withheld_cents','social_security_withheld_cents','medicare_withheld_cents',
-      'additional_medicare_withheld_cents','state_withheld_cents']
-      .some((field) => patch[field] == null)) {
-      return res.status(400).json({ error: 'Enter every paystub tax withholding amount, including zero.' });
-    }
-    patch.status = 'paid';
-    patch.received_at = new Date().toISOString();
-    const { data, error } = await db.from('job_paychecks').update(patch)
-      .eq('id', body.paycheckId).eq('status', 'scheduled')
-      .select('id,job_id,pay_date,status,received_at').single();
+    const { data, error } = await db.rpc('v2_record_receipt', {
+      p_paycheck: body.paycheckId, p_snapshot: snapshot,
+      p_actor: auth.user.id, p_reason: correctionReason,
+    });
     if (error) throw error;
-    await serverAudit(db, { actorUserId: auth.user.id, action: 'v2.paycheck.received',
-      entityType: 'job_paycheck', entityId: data.id,
-      metadata: { job_id: data.job_id, pay_date: data.pay_date } });
-    return res.status(200).json({ paycheck: data });
+    return res.status(200).json({ paycheckId: body.paycheckId, correctionSequence: data });
   } catch (error) {
     console.error('Admin paycheck operation failed', error?.code || 'unknown');
     return res.status(400).json({ error: 'Could not save the pay run.' });

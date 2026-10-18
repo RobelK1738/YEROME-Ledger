@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAsync } from '../../hooks/useAsync.js';
-import { getAdminOverview, saveAdminJob, saveAdminPerson, saveAdminReferral, setPersonStatus } from '../../lib/data/v2.js';
+import { getAdminOverview, getAdminCommissions, saveAdminJob, saveAdminPerson, saveAdminReferral, endAdminReferral, setPersonStatus } from '../../lib/data/v2.js';
 import { createOwner } from '../../lib/data/adminApi.js';
 import { dollarsToCents } from '../../lib/finance-v2/index.js';
 import { formatCurrency } from '../../lib/formatting/money.js';
@@ -21,6 +21,7 @@ function FormField({ label, children }) {
 
 export default function AdminPeople() {
   const { data, loading, error, refresh } = useAsync(getAdminOverview, []);
+  const { data: referralData, refresh: refreshReferrals } = useAsync(getAdminCommissions, []);
   const [searchParams, setSearchParams] = useSearchParams();
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -32,13 +33,14 @@ export default function AdminPeople() {
     firstPayDate: '', startDate: today(), effectiveFrom: today() });
   const [agreement, setAgreement] = useState({ ownerId: '', partnership: 'DIRECT_2_WAY',
     agreementReference: '', agreementVerified: false, actualMonthly: '650', quotedMonthly: '900', effectiveFrom: today() });
-  const [referral, setReferral] = useState({ referrerOwnerId: '', referredOwnerId: '', nameVisibleToReferrer: false });
+  const [referral, setReferral] = useState({ replaceReferralId: '', referrerOwnerId: '', referredOwnerId: '',
+    startDate: today(), nameVisibleToReferrer: false });
   const people = data?.people || [];
   const add = searchParams.get('add');
 
   async function submit(work, success) {
     setBusy(true); setFormError(''); setNotice('');
-    try { await work(); setNotice(success); await refresh(); setSearchParams({}); }
+    try { await work(); setNotice(success); await Promise.all([refresh(), refreshReferrals()]); setSearchParams({}); }
     catch (caught) { setFormError(caught.message || 'Could not save changes.'); await refresh(); }
     finally { setBusy(false); }
   }
@@ -145,6 +147,10 @@ export default function AdminPeople() {
           {item.annualGrossCents == null ? '—' : `${formatCurrency(item.annualGrossCents)} annual gross estimate`}
           {item.status !== 'ended' && item.status !== 'archived' ? <>
             <button className="btn btn--ghost btn--sm" onClick={() => selectJob(item.id)}>Change future pay</button>
+            {item.status === 'active' ? <button className="btn btn--ghost btn--sm" disabled={busy}
+              onClick={() => submit(() => saveAdminJob({ jobId: item.id, action: 'pause', effectiveFrom: today() }, 'edit'), 'Job paused with dated history.')}>Pause job</button> : null}
+            {item.status === 'paused' || item.status === 'pending' ? <button className="btn btn--ghost btn--sm" disabled={busy}
+              onClick={() => submit(() => saveAdminJob({ jobId: item.id, action: 'resume', effectiveFrom: today() }, 'edit'), 'Job active with dated history.')}>Resume job</button> : null}
             <button className="btn btn--ghost btn--sm" disabled={busy} onClick={() => {
               if (window.confirm(`End ${item.employerName} as of today?`)) {
                 submit(() => saveAdminJob({ jobId: item.id, action: 'end', endDate: today() }, 'edit'), 'Job ended.');
@@ -192,14 +198,31 @@ export default function AdminPeople() {
 
     <Card title="Referral agreement" subtitle="$200 per eligible active referred job for a full calendar-month estimate. No percentage split.">
       <form className="v2-form" onSubmit={(event) => { event.preventDefault(); submit(() => saveAdminReferral(referral), 'Referral agreement saved.'); }}>
+        <FormField label="Replace current referral, if applicable"><select value={referral.replaceReferralId}
+          onChange={(e) => {
+            const current = (referralData?.referrals || []).find((row) => row.id === e.target.value);
+            setReferral({ ...referral, replaceReferralId: e.target.value,
+              referredOwnerId: current?.referredOwnerId || referral.referredOwnerId, startDate: today() });
+          }}><option value="">Create new</option>{(referralData?.referrals || []).map((row) =>
+            <option key={row.id} value={row.id}>{row.referrerName} → {row.referredName}</option>)}</select></FormField>
         <FormField label="Referrer"><select required value={referral.referrerOwnerId} onChange={(e) => setReferral({ ...referral, referrerOwnerId: e.target.value })}>
           <option value="">Choose a person</option>{people.map((row) => <option key={row.ownerId} value={row.ownerId}>{row.displayName}</option>)}</select></FormField>
         <FormField label="Referred US Person"><select required value={referral.referredOwnerId} onChange={(e) => setReferral({ ...referral, referredOwnerId: e.target.value })}>
           <option value="">Choose a person</option>{people.map((row) => <option key={row.ownerId} value={row.ownerId}>{row.displayName}</option>)}</select></FormField>
+        <FormField label="Effective start date"><input required type="date" value={referral.startDate}
+          onChange={(e) => setReferral({ ...referral, startDate: e.target.value })} /></FormField>
         <label className="v2-check"><input type="checkbox" checked={referral.nameVisibleToReferrer}
           onChange={(e) => setReferral({ ...referral, nameVisibleToReferrer: e.target.checked })} />Agreement permits showing the referred person’s name</label>
         <button className="btn btn--primary" disabled={busy}>Record referral</button>
       </form>
+      {(referralData?.referrals || []).length ? <ul className="v2-list">{referralData.referrals.map((row) =>
+        <li key={row.id}>{row.referrerName} → {row.referredName} · active referral
+          <button className="btn btn--ghost btn--sm" disabled={busy} onClick={() => {
+            if (window.confirm(`End the referral for ${row.referredName} today?`)) {
+              submit(() => endAdminReferral(row.id, today()), 'Referral ended with dated history.');
+            }
+          }}>End referral</button>
+        </li>)}</ul> : null}
     </Card>
   </>;
 }

@@ -2,7 +2,7 @@
 // taxpayer-level annual liability estimate. Missing values remain missing.
 export function taxReconciliation({ projectedLiabilityCents, estimatedTaxPaymentsCents = 0,
   socialSecurityAnnualCapCents = null, paychecks = [] }) {
-  if (!Number.isSafeInteger(projectedLiabilityCents) || !Number.isSafeInteger(estimatedTaxPaymentsCents)) {
+  if ((projectedLiabilityCents !== null && !Number.isSafeInteger(projectedLiabilityCents)) || !Number.isSafeInteger(estimatedTaxPaymentsCents)) {
     throw new TypeError('Tax amounts must be integer cents');
   }
   const withholdingFields = [
@@ -38,7 +38,7 @@ export function taxReconciliation({ projectedLiabilityCents, estimatedTaxPayment
     potentialExcessSocialSecurityCents: socialSecurityAnnualCapCents == null || missingWithholdingCount ? null :
       Math.max(0, actualSocialSecurityWithheldCents - socialSecurityAnnualCapCents),
     estimatedTaxPaymentsCents,
-    projectedGapCents: missingWithholdingCount ? null :
+    projectedGapCents: missingWithholdingCount || projectedLiabilityCents === null ? null :
       projectedLiabilityCents - actualWithholdingCents - estimatedTaxPaymentsCents,
     actualNetReceivedCents,
     missingNetCount,

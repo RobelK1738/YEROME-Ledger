@@ -36,9 +36,11 @@ function jobProjection(job) {
   const annualGrossCents = terms.mode === 'hourly'
     ? hourlyAnnualGrossCents(Number(terms.hourly_rate_cents), Number(terms.expected_weekly_hours))
     : Number(terms.annual_salary_cents);
-  const typicalBiweeklyGrossCents = terms.mode === 'hourly'
+  const periodsPerYear = Number(terms.periods_per_year) || 26;
+  const normalizedBiweeklyGrossCents = terms.mode === 'hourly'
     ? hourlyBiweeklyGrossCents(Number(terms.hourly_rate_cents), Number(terms.expected_weekly_hours))
     : roundRatio(annualGrossCents, 1, 26);
+  const typicalEmployerPaycheckGrossCents = roundRatio(annualGrossCents, 1, periodsPerYear);
   return {
     id: job.id,
     employerName: job.employer_name,
@@ -50,9 +52,11 @@ function jobProjection(job) {
     hourlyRateCents: terms.mode === 'hourly' ? Number(terms.hourly_rate_cents) : null,
     expectedWeeklyHours: terms.mode === 'hourly' ? Number(terms.expected_weekly_hours) : null,
     annualGrossCents,
-    typicalBiweeklyGrossCents,
+    typicalBiweeklyGrossCents: normalizedBiweeklyGrossCents,
+    normalizedBiweeklyGrossCents,
+    typicalEmployerPaycheckGrossCents,
     payFrequency: terms.pay_frequency,
-    periodsPerYear: Number(terms.periods_per_year) || null,
+    periodsPerYear,
     firstPayDate: terms.first_pay_date || null,
     currentTermsEffectiveFrom: terms.effective_from || null,
     needsTermsReview: false,
@@ -60,16 +64,22 @@ function jobProjection(job) {
 }
 
 /** One person's steady-state annual projection; each job belongs to that person. */
-export function projectPerson({ owner, jobs = [], apartment = null, paychecks = [], hasVerifiedReferral = false, agreementEffectiveFrom = null, taxYear = 2026, asOf = new Date().toISOString().slice(0, 10) }) {
+export function projectPerson({ owner, jobs = [], apartment = null, paychecks = [], partnerSettlements = [], hasVerifiedReferral = false, agreementEffectiveFrom = null, taxYear = 2026, asOf = new Date().toISOString().slice(0, 10) }) {
   if (taxYear !== 2026) throw new RangeError('Tax year is not configured');
   if (jobs.some((job) => job.owner_id !== owner.id)) throw new RangeError('Cross-person job in projection');
   const myJobs = jobs.map(jobProjection);
   const activeJobs = myJobs.filter((job) => job.status === 'active');
   const incompleteTerms = activeJobs.some((job) => job.needsTermsReview);
   const annualGrossCents = activeJobs.reduce((sum, job) => sum + (job.annualGrossCents || 0), 0);
-  const taxYearWagesCents = myJobs.reduce((sum, job) => sum + taxYearWagesForJob(job, taxYear), 0);
+  // An annual estimate built from today's terms would rewrite earlier months
+  // after a raise. Until a dated wage ledger covers every interval, suppress it.
+  const annualTaxNeedsReview = jobs.some((job) => (job.termsHistory || [])
+    .filter((term) => term.effective_from <= `${taxYear}-12-31` &&
+      (!term.effective_to || term.effective_to >= `${taxYear}-01-01`)).length > 1);
+  const taxYearWagesCents = annualTaxNeedsReview ? null :
+    myJobs.reduce((sum, job) => sum + taxYearWagesForJob(job, taxYear), 0);
   const taxConfig = getTaxConfig2026(owner.filing_status);
-  const taxEstimate = ownerTaxEstimate({
+  const taxEstimate = taxYearWagesCents == null ? null : ownerTaxEstimate({
     grossWagesCents: taxYearWagesCents,
     settings: taxConfig,
     otherIncomeAdjCents: Number(owner.other_income_adjustment_cents) || 0,
@@ -113,14 +123,17 @@ export function projectPerson({ owner, jobs = [], apartment = null, paychecks = 
       medicareWithheldCents: check.medicare_withheld_cents ?? null,
       additionalMedicareWithheldCents: check.additional_medicare_withheld_cents ?? null,
       stateWithheldCents: check.state_withheld_cents ?? null,
+      otherDeductionsCents: check.other_deductions_cents ?? null,
+      corrected: check.corrected === true,
     }));
   const nextPayDate = myPaychecks
     .filter((check) => check.payDate >= asOf && check.status === 'scheduled')
     .sort((a, b) => a.payDate.localeCompare(b.payDate))[0]?.payDate || null;
   const reconciliation = taxReconciliation({
-    projectedLiabilityCents: taxEstimate.totalTaxCents,
+    projectedLiabilityCents: taxEstimate?.totalTaxCents ?? null,
     socialSecurityAnnualCapCents: roundRatio(taxConfig.social_security_wage_base_cents, 62, 1000),
-    paychecks: myPaychecks.filter((check) => check.status === 'paid').map((check) => ({
+    paychecks: myPaychecks.filter((check) => check.status === 'paid' &&
+      check.payDate >= `${taxYear}-01-01` && check.payDate <= `${taxYear}-12-31`).map((check) => ({
       federalWithheldCents: check.federalWithheldCents,
       socialSecurityWithheldCents: check.socialSecurityWithheldCents,
       medicareWithheldCents: check.medicareWithheldCents,
@@ -130,8 +143,8 @@ export function projectPerson({ owner, jobs = [], apartment = null, paychecks = 
     })),
   });
   return { owner, apartment, agreementEffectiveFrom, myJobs, myPaychecks, activeJobCount: activeJobs.length, annualGrossCents,
-    taxYearWagesCents, taxEstimate, runRateTaxEstimate, monthlyAfterTaxCents, statement, nextPayDate, reconciliation,
-    projectionAvailable, incompleteTerms, stateSupported, taxYear, asOf };
+    taxYearWagesCents, taxEstimate, annualTaxNeedsReview, runRateTaxEstimate, monthlyAfterTaxCents, statement, nextPayDate, reconciliation,
+    partnerSettlements, projectionAvailable, incompleteTerms, stateSupported, taxYear, asOf };
 }
 
 /** Explicit allowlist. Never spread an owner, job, or internal statement into it. */
@@ -140,7 +153,7 @@ export function ownerStatementDto(projected) {
   return {
     calculationVersion: CALCULATION_VERSION,
     taxYear: projected.taxYear,
-    taxConfigVersion: projected.taxEstimate.taxConfigVersion,
+    taxConfigVersion: projected.taxEstimate?.taxConfigVersion || projected.runRateTaxEstimate.taxConfigVersion,
     asOf: projected.asOf,
     displayName: projected.owner.display_name,
     projectionAvailable: projected.projectionAvailable,
@@ -148,10 +161,17 @@ export function ownerStatementDto(projected) {
     activeJobCount: projected.activeJobCount,
     myJobs: projected.myJobs,
     myPaychecks: projected.myPaychecks,
+    partnerSettlements: projected.partnerSettlements.map((row) => ({
+      paycheckId: row.paycheckId, payDate: row.payDate,
+      partnerDueCents: row.partnerDueCents, paidCents: row.paidCents,
+      owedCents: row.owedCents, lastPaidAt: row.lastPaidAt || null,
+      needsAdjustment: row.needsAdjustment === true,
+    })),
     nextPayDate: projected.nextPayDate,
     annualGrossEstimateCents: projected.annualGrossCents,
     taxYearProjectedWagesCents: projected.taxYearWagesCents,
-    annualTaxLiabilityEstimateCents: projected.stateSupported ? projected.taxEstimate.totalTaxCents : null,
+    annualTaxLiabilityEstimateCents: projected.stateSupported ? projected.taxEstimate?.totalTaxCents ?? null : null,
+    annualTaxNeedsReview: projected.annualTaxNeedsReview,
     monthlyAfterTaxEquivalentCents: projected.stateSupported ? projected.monthlyAfterTaxCents : null,
     agreedChargesMonthlyCents: s?.quotedCostCents ?? null,
     quotedNetMonthlyCents: s?.quotedNetCents ?? null,
@@ -161,7 +181,7 @@ export function ownerStatementDto(projected) {
     requiresPayoutDecision: s?.needsPayoutPolicy ?? false,
     taxReconciliation: projected.stateSupported ? projected.reconciliation : null,
     estimateLimitations: projected.stateSupported
-      ? '2026 Texas planning estimates: monthly share uses current full-year run rate; annual liability uses job start/end dates. Actual hours, term changes, withholding, credits and other income may differ.'
+      ? '2026 Texas planning estimates: monthly share uses current full-year run rate. Annual liability is unavailable after a pay-term change until dated wages are reviewed. Actual hours, withholding, credits and other income may differ.'
       : 'State tax assumptions are not configured for this US Person; no partner share is projected.',
   };
 }

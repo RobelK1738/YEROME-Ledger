@@ -68,7 +68,8 @@ export function OwnerJobs() {
         <p>{job.compensationMode === 'hourly'
           ? `${money(job.hourlyRateCents)} per hour · ${job.expectedWeeklyHours} expected hours per week`
           : `${money(job.annualGrossCents)} annual salary`}</p>
-        <p>Typical biweekly gross: <strong>{money(job.typicalBiweeklyGrossCents)}</strong> · estimate</p>
+        <p>Typical employer paycheck gross: <strong>{money(job.typicalEmployerPaycheckGrossCents)}</strong> · {job.periodsPerYear} pay periods per year · estimate</p>
+        <p>Normalized two-week planning gross: {money(job.normalizedBiweeklyGrossCents)}</p>
         <p>Payroll frequency: {job.payFrequency} · first configured payday: {job.firstPayDate || 'not scheduled'}</p>
       </>}
     </Card>)}</div> : <Card><p className="muted">No jobs have been added to your account yet.</p></Card>}
@@ -91,8 +92,17 @@ export function OwnerPayments() {
         </details>
       </li>)}</ul> : <p className="muted">No pay dates have been recorded yet.</p>}
     </Card>
+    <Card title="Contractual partner distributions" subtitle="Posted from a completed, reviewed pay period; separate from employer deposits.">
+      {data.partnerSettlements?.length ? <ul className="v2-list">{data.partnerSettlements.map((row) =>
+        <li key={row.paycheckId}><strong>Paycheck dated {row.payDate}</strong>
+          <p>Contractual share due: {money(row.partnerDueCents)} · recorded paid: {money(row.paidCents)} · outstanding: {money(row.owedCents)}</p>
+          {row.lastPaidAt ? <p>Last recorded distribution: {row.lastPaidAt.slice(0, 10)}</p> : null}
+          {row.needsAdjustment ? <p>Paystub correction is pending a contractual adjustment review.</p> : null}
+        </li>)}</ul> : <p className="muted">No contractual distributions have been posted. Employer receipts above do not create a settled share.</p>}
+    </Card>
     <Card title="Tax position" subtitle="This is informational and does not make another deduction from your share.">
       <p>Estimated annual tax liability: {money(data.annualTaxLiabilityEstimateCents)}</p>
+      {data.annualTaxNeedsReview ? <p className="muted">Annual tax needs dated wage review after a pay-term change. The current monthly run rate remains an estimate.</p> : null}
       <p>Withheld on recorded paychecks: {money(data.taxReconciliation?.actualWithholdingCents)}</p>
       <p>Social Security withheld on recorded paychecks: {money(data.taxReconciliation?.actualSocialSecurityWithheldCents)}</p>
       <p>Potential Social Security excess above the 2026 annual cap: {money(data.taxReconciliation?.potentialExcessSocialSecurityCents)}</p>

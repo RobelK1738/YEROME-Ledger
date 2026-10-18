@@ -1,4 +1,4 @@
-import { adminClient, requireAdmin, readJsonBody, serverAudit } from '../_lib/supabaseAdmin.js';
+import { adminClient, requireAdmin, readJsonBody } from '../_lib/supabaseAdmin.js';
 
 const FREQUENCIES = new Set(['weekly', 'biweekly', 'semimonthly', 'monthly']);
 const STATUSES = new Set(['pending', 'active', 'paused', 'ended', 'archived']);
@@ -65,14 +65,15 @@ export default async function handler(req, res) {
       if (error) throw error;
       return res.status(200).json({ termId: data });
     }
-    if (body.action === 'end') {
-      const { data, error } = await db.from('jobs').update({
-        status: 'ended', end_date: body.endDate || new Date().toISOString().slice(0, 10),
-      }).eq('id', body.jobId).select('id,owner_id,status,end_date').single();
+    if (['end', 'pause', 'resume'].includes(body.action)) {
+      const status = { end: 'ended', pause: 'paused', resume: 'active' }[body.action];
+      const { data, error } = await db.rpc('v2_change_job_status', {
+        p_job: body.jobId, p_status: status,
+        p_effective_from: body.effectiveFrom || body.endDate || new Date().toISOString().slice(0, 10),
+        p_actor: auth.user.id,
+      });
       if (error) throw error;
-      await serverAudit(db, { actorUserId: auth.user.id, action: 'v2.job.ended',
-        entityType: 'job', entityId: data.id, metadata: { owner_id: data.owner_id, end_date: data.end_date } });
-      return res.status(200).json({ job: data });
+      return res.status(200).json({ statusEventId: data });
     }
     return res.status(400).json({ error: 'Unsupported job action.' });
   } catch (error) {

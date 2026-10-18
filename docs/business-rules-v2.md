@@ -74,30 +74,60 @@ an estimated excess credit is a tax-return matter, not cash available for a
 current-period distribution. The reconciliation gap is informational and is
 never an automatic second deduction.
 
-For an hourly job, typical biweekly gross is hourly cents × weekly hours × 2;
+For an hourly job, normalized typical biweekly gross is hourly cents × weekly hours × 2;
 annual steady-state gross is hourly cents × weekly hours × 52. Dated actual
 hours and paystub gross replace an estimate only for that check. A monthly
 planning amount's biweekly equivalent is `monthly × 12 ÷ 26`, with cent
-rounding. `allocateCents` spreads annual fixed totals across an actual chosen
-24, 26, 27 or 52 periods with exact conservation. A scheduled pay date is not
-proof that cash was received or a partner distribution was settled.
+rounding. A salaried job's **employer paycheck estimate** uses its configured
+period count (12, 24, 26, 27 or 52); its normalized two-week equivalent still
+uses 26. `allocateCents` spreads annual fixed totals across an actual chosen
+period count with exact conservation. A scheduled pay date is not proof that
+cash was received or a partner distribution was settled. For 2026 reconciliation,
+only paid checks with a 2026 pay date count; all pages of dated checks are read.
+Gross must equal net deposit plus each recorded withholding and other deduction.
+Corrections append a full replacement paystub snapshot and audit event; the
+original received check remains immutable.
 
 ## Versions, history and limits
 
-New job pay terms and agreement terms have effective dates and immutable prior
-versions. Previously settled paycheck snapshots are protected against update
-and deletion; corrections require a separate adjustment record. Legacy rows
+New job pay terms, status events, referral status events and agreement terms
+have effective dates and immutable prior versions. Previously settled paycheck
+snapshots are protected against update and deletion. A later paystub correction
+flags a posted settlement for an explicit balanced adjustment before more
+partner payment can be recorded. Legacy rows
 are **not** automatically classified as a verified direct/referral agreement,
 and old paid statuses are not silently converted to v2 settlements.
 
 The monthly partner projection is a **steady-state run rate**, using current
-active jobs. The separate tax-year liability estimate prorates the current job
-rate over the dated active portion of 2026. It is not yet reconciled to actual
-hours, historical paystubs, job pauses or changing job terms within the year;
-those need a more complete dated forecast. The UI labels the two bases
-separately. The commission posting function only accepts
-completed full calendar months with unambiguous full-month active jobs. It
-does not decide partial-month entitlements.
+active jobs. The separate tax-year liability estimate prorates current terms
+over dated employment when one term version applies. When pay terms change
+within 2026, the annual tax and reconciliation gap are marked unavailable until
+dated wages are reviewed; a current run-rate share may still be shown. Actual
+hours, historical paystubs and job pauses need a fuller dated forecast. The
+commission posting function uses status events at the earned month and accepts
+only completed full calendar months with unambiguous full-month active jobs and
+a verified agreement/referral. It does not decide partial-month entitlements.
+
+## Decision-gated dated settlement proposal
+
+`src/lib/finance-v2/settlement.js` is a tested proposal for a **closed person
+calendar month**. Under a proposed receipt-net basis, all scheduled paychecks
+in that month must have reconciled receipts. Their actual net deposits form `A`;
+one quoted apartment charge and one actual apartment spend are applied per
+person, and only full-month active jobs are counted. The same 50/50, $200/job,
+and 10% formulas apply. Monthly totals are allocated to dated checks in
+proportion to each net deposit with deterministic cent remainders. Each line
+and the whole month reconcile exactly. A partial or paused job, a missing
+receipt, an unverified contract or a negative quoted net blocks posting.
+
+**This cash basis and allocation are proposals, not approved contractual or
+tax facts.** No settlement-policy approval is seeded. The Admin API and SQL
+RPC refuse posting, partner payment and adjustment without an enabled,
+documented approval for that person. A synthetic approval exists only inside
+the disposable database test. Once approved, the ledger stores the agreement
+version, receipt correction sequence, calculation version, idempotency key,
+partner due, recorded payments, outstanding amount and immutable balanced
+adjustments. It does not initiate a transfer.
 
 ## Decision register
 
@@ -110,6 +140,7 @@ does not decide partial-month entitlements.
 | Gang Cut custody | Internal allocation only | Define account and legal classification |
 | Charge and commission disclosure | Use agreed commercial fee wording | Counsel review of signed agreements |
 | Employer W-2 deposits versus partner distributions | Keep separate, no automatic movement | Accounting/legal signoff on structure |
+| Dated settlement receipt basis and allocation | Gate all real posting; proposed closed-month net-deposit basis only in tests | Approve or replace the basis, charge allocation, payment timing and signed policy reference |
 | State tax and future tax years | Texas 2026 only | Provide reviewed versioned parameters |
 | Historical three-way and old referral rows | Do not auto-map or pay | Review identity, signed terms and migration evidence |
 

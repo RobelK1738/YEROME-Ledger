@@ -14,7 +14,8 @@ unchanged; all changes are new incremental migrations.
    `npm ci`, `npm test`, `npm run build`, then `npm run test:security`.
 2. The security script creates a disposable, local Unix-socket database,
    applies every migration, exercises separate simulated Admin/US Person
-   identities, then removes that database. It does **not** prove hosted Auth,
+   identities, rehearses a synthetic approved settlement, partial payment,
+   corrected paystub, adjustment and replay, then removes that database. It does **not** prove hosted Auth,
    PostgREST or Vercel behavior.
 3. The optional `supabase/seed.sql` is disposable demo data for a **fresh local
    database only**. It creates no working Auth accounts, and its agreements
@@ -38,9 +39,14 @@ unchanged; all changes are new incremental migrations.
   are dropped and those transfer instructions deactivated. Audit the archive
   count before any later retention decision; no obsolete amount is exposed in
   a v2 DTO or active calculation.
+- The review migrations append receipt corrections and dated job/referral status
+  histories. Existing terms are seeded with **current-day status only**; no
+  unknown prior pauses or referral eligibility are fabricated. Reconcile old
+  activity with source documents before any historical posting. The settlement
+  approval table is empty after migration, so real posting stays disabled.
 - If a pre-production application test fails, stop serving the preview and
   restore its pre-migration database snapshot. Do not manually reverse only
-  part of the five interdependent migrations. For production, write and test a
+  part of the interdependent v2 migrations. For production, write and test a
   rollback plan against a representative sanitized copy before approval.
 
 ## Reproducible preview checklist
@@ -64,17 +70,24 @@ unchanged; all changes are new incremental migrations.
 6. Post a completed full-month referral accrual, then record a synthetic
    external payment. Verify accrued, paid and owed cents. Attempt an
    overpayment and a historical mutation; both must fail.
-7. Validate keyboard/mobile navigation, loading/empty/error states, and all
+7. In the isolated preview only, explicitly enable a **synthetic** settlement
+   policy after documenting the proposed receipt basis. Test a completed month,
+   missing and late paystub, correction, partial partner payment, adjustment,
+   loss block, idempotent replay and owner-specific read-only history. Never
+   enable this policy in a live project without founder and professional signoff.
+8. Validate keyboard/mobile navigation, loading/empty/error states, and all
    three role experiences. Retain screenshots and response samples with
    synthetic data for review.
 
 ## Open engineering gates
 
-- Build the dated partner settlement workflow and balanced immutable ledger
-  snapshots. Current settlement tables enforce immutability but the operation
-  and UI are incomplete; no partner payout should be marked settled yet.
-- Add an audited correction workflow for a mistaken received paystub. Recorded
-  receipts are immutable; the preview must not edit or erase the original.
+- Founder, accounting and legal signoff on the proposed receipt-net settlement
+  basis, proportional allocation, charge timing, losses and payment custody is
+  required before enabling any real policy row or partner posting. No approval
+  row is installed by these migrations.
+- Rehearse the migration and three-role Auth/PostgREST/browser flow on a
+  separate hosted preview with distinct real test identities. Disposable local
+  PostgreSQL role tests cannot prove hosted Supabase behavior.
 - Extend the basic dated start/end tax-year projection to account for actual
   hours, prior pay, pauses, changing terms and independent employers. Confirm
   official tax fixtures for all filing statuses
@@ -82,6 +95,7 @@ unchanged; all changes are new incremental migrations.
 - Add versioned edits for all per-job service cost categories and historical
   lease dates. Current editable apartment terms are versioned; per-job amounts
   use the v2 package constants.
-- Execute real hosted Auth/RLS/API and three-role end-to-end tests in a separate
-  preview project. The local security suite uses simulated JWT claims.
+- Extend annual tax projection through historical term segments and actual
+  hours; current implementation suppresses annual liability after a term
+  change rather than asserting a false annual wage figure.
 - Obtain founder and accounting/legal decisions in `business-rules-v2.md`.

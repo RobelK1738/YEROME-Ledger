@@ -18,11 +18,11 @@ customer records, production settings or secrets were read.
 
 Implementation entry points: `src/lib/finance-v2/index.js` (pure math),
 `src/lib/finance-v2/projection.js` (person projection and strict DTOs),
-`api/_lib/v2.js` (verified identity and scoped data loading),
-`api/me/*` and `api/admin/*` (role-specific endpoints), and the five
+`server/_lib/v2.js` (verified identity and scoped data loading),
+`server/me/*` and `server/admin/*` (role-specific handlers), the single
+`api/index.js` Vercel entry point, and the incremental
 `supabase/migrations/20261018*.sql` files (security and versioned records).
 
-Remaining release blockers are listed in `migration-runbook.md`. In
-particular, the dated payrun settlement operation and its end-to-end tests are
-not complete; the current UI records employer receipts and full-month
-commissions, but it does not settle a partner share automatically.
+Remaining release gates are listed in `migration-runbook.md`. Dated settlement
+code and disposable database tests exist, but its proposed cash basis is gated
+by an empty founder approval table. No real partner share is posted or moved.

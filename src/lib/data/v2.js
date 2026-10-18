@@ -24,7 +24,12 @@ export const saveAdminPerson = (input) => v2Request('/api/admin/person', 'PATCH'
 export const setPersonStatus = (ownerId, status) =>
   v2Request('/api/owners/set-status', 'POST', { ownerId, status });
 export const saveAdminReferral = (input) => v2Request('/api/admin/referral', 'POST', input);
+export const endAdminReferral = (referralId, effectiveFrom) =>
+  v2Request('/api/admin/referral', 'PATCH', { action: 'end', referralId, effectiveFrom });
 export const schedulePaychecks = (input) => v2Request('/api/admin/paycheck', 'POST', input);
 export const recordPaycheck = (input) => v2Request('/api/admin/paycheck', 'PATCH', input);
 export const getAdminCommissions = () => v2Request('/api/admin/commissions');
 export const postAdminCommission = (input) => v2Request('/api/admin/commissions', 'POST', input);
+export const getAdminSettlements = (ownerId, calendarMonth) =>
+  v2Request(`/api/admin/settlements?ownerId=${encodeURIComponent(ownerId)}&calendarMonth=${encodeURIComponent(calendarMonth)}`);
+export const postAdminSettlement = (input) => v2Request('/api/admin/settlements', 'POST', input);

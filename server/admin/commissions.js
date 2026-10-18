@@ -60,6 +60,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       referrals: (referralsResult.data || []).map((referral) => ({
         id: referral.id,
+        referrerOwnerId: referral.referrer_owner_id,
+        referredOwnerId: referral.referred_owner_id,
         referrerName: names.get(referral.referrer_owner_id) || 'US Person',
         referredName: names.get(referral.referred_owner_id) || 'US Person',
         needsContractReview: referral.commission_basis_type !== 'flat_per_active_job_month',
