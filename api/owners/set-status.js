@@ -19,9 +19,7 @@ export default async function handler(req, res) {
   if (!ownerId) return res.status(400).json({ error: 'ownerId is required.' });
   if (!status) return res.status(400).json({ error: 'A valid status is required.' });
 
-  // Disable login automatically for inactive/archived unless told otherwise.
-  const disableLogin =
-    body.disableLogin != null ? Boolean(body.disableLogin) : status !== 'active';
+  const disableLogin = status !== 'active';
 
   const admin = adminClient();
   const { data: owner, error: ownerErr } = await admin
@@ -31,13 +29,25 @@ export default async function handler(req, res) {
     .maybeSingle();
   if (ownerErr || !owner) return res.status(404).json({ error: 'Owner not found.' });
 
+  if (!disableLogin && owner.auth_user_id) {
+    const { error: unbanError } = await admin.auth.admin
+      .updateUserById(owner.auth_user_id, { ban_duration: 'none' });
+    if (unbanError) return res.status(503).json({ error: 'Could not reactivate the Auth account.' });
+  }
+
   const { error: updErr } = await admin.from('owners').update({ status }).eq('id', ownerId);
   if (updErr) return res.status(400).json({ error: updErr.message || 'Could not update status.' });
 
-  if (owner.auth_user_id) {
-    await admin.auth.admin
-      .updateUserById(owner.auth_user_id, { ban_duration: disableLogin ? BAN_DURATION : 'none' })
-      .catch(() => {});
+  if (disableLogin && owner.auth_user_id) {
+    const { error: banError } = await admin.auth.admin
+      .updateUserById(owner.auth_user_id, { ban_duration: BAN_DURATION });
+    if (banError) {
+      console.error('Owner Auth status update failed', banError.code || 'unknown');
+      await serverAudit(admin, { actorUserId: auth.user.id, action: 'owner.status_changed_auth_retry_needed',
+        entityType: 'owner', entityId: owner.id,
+        metadata: { from: owner.status, to: status, login_disabled: disableLogin } });
+      return res.status(503).json({ error: 'Person status changed, but Auth access update failed. Retry the status action.' });
+    }
   }
 
   await serverAudit(admin, {

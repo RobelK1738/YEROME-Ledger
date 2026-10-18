@@ -13,7 +13,7 @@ import {
 } from '../_lib/supabaseAdmin.js';
 
 const FILING_STATUSES = ['single', 'mfj', 'mfs', 'hoh'];
-const DEAL_TYPES = ['miki_wohabe', 'three_way', 'no_middle'];
+const PARTNERSHIPS = ['DIRECT_2_WAY', 'MIKI_REFERRAL_2_WAY'];
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
@@ -25,13 +25,10 @@ export default async function handler(req, res) {
   const username = String(body.username || '').toLowerCase().trim();
   const { password, displayName } = body;
   const filingStatus = FILING_STATUSES.includes(body.filingStatus) ? body.filingStatus : 'single';
-  const rawDeal = body.dealType === 'two_way' ? 'no_middle' : body.dealType;
-  const dealType = DEAL_TYPES.includes(rawDeal) ? rawDeal : 'three_way';
+  const partnership = PARTNERSHIPS.includes(body.partnership) ? body.partnership : null;
   const state = body.state || 'TX';
-  const safetyReserveRate =
-    body.safetyReserveRate != null && body.safetyReserveRate !== ''
-      ? Number(body.safetyReserveRate)
-      : 0.12;
+  const agreementReference = String(body.agreementReference || '').trim();
+  const agreementVerified = body.agreementVerified === true && Boolean(agreementReference);
   const notes = body.notes || null;
 
   const uErr = validateUsername(username);
@@ -41,8 +38,9 @@ export default async function handler(req, res) {
   if (!displayName || !String(displayName).trim()) {
     return res.status(400).json({ error: 'Display name is required.' });
   }
-  if (!(safetyReserveRate >= 0 && safetyReserveRate <= 1)) {
-    return res.status(400).json({ error: 'Safety reserve rate must be between 0 and 1.' });
+  if (!partnership) return res.status(400).json({ error: 'Choose a confirmed partnership model.' });
+  if (body.agreementVerified && !agreementReference) {
+    return res.status(400).json({ error: 'Agreement reference is required to mark it verified.' });
   }
 
   const admin = adminClient();
@@ -74,9 +72,7 @@ export default async function handler(req, res) {
       username,
       display_name: String(displayName).trim(),
       filing_status: filingStatus,
-      deal_type: dealType,
       state,
-      safety_reserve_rate: safetyReserveRate,
       notes,
       status: 'active',
     })
@@ -86,6 +82,22 @@ export default async function handler(req, res) {
     // Roll back the auth user so we don't orphan an identity.
     await admin.auth.admin.deleteUser(authUserId).catch(() => {});
     return res.status(400).json({ error: ownerErr.message || 'Could not create Owner record.' });
+  }
+
+  const { error: apartmentErr } = await admin.rpc('v2_change_agreement', {
+    p_owner: owner.id,
+    p_partnership: partnership,
+    p_actual_apartment_cents: 65000,
+    p_quoted_apartment_cents: 90000,
+    p_reference: agreementReference,
+    p_verified: agreementVerified,
+    p_effective_from: new Date().toISOString().slice(0, 10),
+    p_actor: auth.user.id,
+  });
+  if (apartmentErr) {
+    await admin.from('owners').delete().eq('id', owner.id);
+    await admin.auth.admin.deleteUser(authUserId).catch(() => {});
+    return res.status(500).json({ error: 'Could not create agreement record.' });
   }
 
   // 3) Stamp owner_id into app_metadata for fast RLS lookups.
@@ -98,7 +110,8 @@ export default async function handler(req, res) {
     action: 'owner.created',
     entityType: 'owner',
     entityId: owner.id,
-    metadata: { username, display_name: owner.display_name, filing_status: filingStatus },
+    metadata: { username, display_name: owner.display_name, filing_status: filingStatus,
+      partnership, agreement_verified: agreementVerified },
   });
 
   return res.status(200).json({ ok: true, owner });

@@ -50,7 +50,7 @@ export async function requireAdmin(req) {
   const { adminEmail } = getEnv();
   const role = data.user.app_metadata?.role;
   const emailMatches =
-    !adminEmail || data.user.email?.toLowerCase() === String(adminEmail).toLowerCase();
+    Boolean(adminEmail) && data.user.email?.toLowerCase() === String(adminEmail).toLowerCase();
   if (role !== 'admin' || !emailMatches) {
     return { ok: false, status: 403, error: 'YEROME access required.' };
   }
@@ -104,14 +104,17 @@ export function validatePassword(password) {
 /** Write an audit entry with the service-role client (never logs secrets). */
 export async function serverAudit(admin, { actorUserId, action, entityType, entityId, metadata }) {
   try {
-    await admin.from('audit_log').insert({
+    const { error } = await admin.from('audit_log').insert({
       actor_user_id: actorUserId ?? null,
       action,
       entity_type: entityType,
       entity_id: entityId ?? null,
       metadata_json: metadata ?? {},
     });
+    if (error) throw error;
+    return true;
   } catch {
-    /* best-effort */
+    console.error('Server audit insertion failed');
+    return false;
   }
 }
