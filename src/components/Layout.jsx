@@ -25,7 +25,7 @@ export function Layout({ navItems, portalLabel }) {
 
   const displayName = isAdmin
     ? user?.email || 'YEROME'
-    : user?.user_metadata?.display_name || user?.user_metadata?.username || 'Owner';
+    : user?.user_metadata?.display_name || user?.user_metadata?.username || 'US Person';
 
   const current = activeItem(navItems, location.pathname);
   const primaryItems = navItems.filter((item) => item.primary);
@@ -77,7 +77,7 @@ export function Layout({ navItems, portalLabel }) {
         <div className="sidebar__footer">
           <div className="sidebar__user">
             <div className="sidebar__user-name">{displayName}</div>
-            <div className="sidebar__user-role">{isAdmin ? 'YEROME' : 'Owner'}</div>
+            <div className="sidebar__user-role">{isAdmin ? 'YEROME' : 'US Person'}</div>
           </div>
           <button type="button" className="btn btn--ghost btn--sm" onClick={signOut}>
             Sign out
@@ -126,7 +126,7 @@ export function Layout({ navItems, portalLabel }) {
             <div className="sidebar__footer drawer__footer">
               <div className="sidebar__user">
                 <div className="sidebar__user-name">{displayName}</div>
-                <div className="sidebar__user-role">{isAdmin ? 'YEROME' : 'Owner'}</div>
+                <div className="sidebar__user-role">{isAdmin ? 'YEROME' : 'US Person'}</div>
               </div>
               <button type="button" className="btn btn--ghost btn--sm" onClick={signOut}>
                 Sign out
