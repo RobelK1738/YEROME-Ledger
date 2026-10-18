@@ -115,6 +115,9 @@ create trigger v2_settlements_immutable before update or delete on public.v2_pay
 create function private.reject_settled_paycheck_change() returns trigger
 language plpgsql set search_path = '' as $$
 begin
+  if old.status = 'paid' then
+    raise exception 'A received paycheck is immutable; record an audited correction' using errcode = '23514';
+  end if;
   if exists (select 1 from public.v2_payrun_settlements where job_paycheck_id = old.id) then
     raise exception 'A settled paycheck is immutable; post an adjustment instead' using errcode = '23514';
   end if;

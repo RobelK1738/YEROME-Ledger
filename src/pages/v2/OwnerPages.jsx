@@ -97,6 +97,7 @@ export function OwnerPayments() {
       <p>Social Security withheld on recorded paychecks: {money(data.taxReconciliation?.actualSocialSecurityWithheldCents)}</p>
       <p>Potential Social Security excess above the 2026 annual cap: {money(data.taxReconciliation?.potentialExcessSocialSecurityCents)}</p>
       <p>Annual estimate less withholding recorded so far: {money(data.taxReconciliation?.projectedGapCents)}</p>
+      {data.taxReconciliation?.missingWithholdingCount ? <p className="muted">Withholding is incomplete on {data.taxReconciliation.missingWithholdingCount} received paycheck(s). The comparison is unavailable until the paystubs are reviewed.</p> : null}
       <p className="muted">Future paycheck withholding and any estimated tax payments are not included, so this is not a final year-end balance.</p>
       <p className="muted">Any Social Security credit is a tax-return matter; it is not included in current paycheck cash or a partner distribution.</p>
     </Card>

@@ -73,6 +73,8 @@ unchanged; all changes are new incremental migrations.
 - Build the dated partner settlement workflow and balanced immutable ledger
   snapshots. Current settlement tables enforce immutability but the operation
   and UI are incomplete; no partner payout should be marked settled yet.
+- Add an audited correction workflow for a mistaken received paystub. Recorded
+  receipts are immutable; the preview must not edit or erase the original.
 - Extend the basic dated start/end tax-year projection to account for actual
   hours, prior pay, pauses, changing terms and independent employers. Confirm
   official tax fixtures for all filing statuses

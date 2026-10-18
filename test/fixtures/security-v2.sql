@@ -50,17 +50,25 @@ end $$;
 do $$ declare first_agreement uuid; second_agreement uuid; begin
   first_agreement := public.v2_change_agreement(
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','DIRECT_2_WAY',65000,90000,
-    'signed-agreement-a',true,'2026-01-01','40000000-0000-0000-0000-000000000004');
+    'signed-agreement-a',true,current_date - 1,'40000000-0000-0000-0000-000000000004');
   second_agreement := public.v2_change_agreement(
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','DIRECT_2_WAY',70000,95000,
-    'signed-amendment-a',true,'2026-02-01','40000000-0000-0000-0000-000000000004');
+    'signed-amendment-a',true,current_date + 1,'40000000-0000-0000-0000-000000000004');
   if (select count(*) from public.v2_agreement_versions
       where owner_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') <> 2 then
     raise exception 'Agreement history missing';
   end if;
-  if (select effective_to from public.v2_agreement_versions where id = first_agreement) <> '2026-01-31' then
+  if (select effective_to from public.v2_agreement_versions where id = first_agreement) <> current_date then
     raise exception 'Previous agreement not closed prospectively';
   end if;
+  begin
+    perform public.v2_change_agreement(
+      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','DIRECT_2_WAY',1,1,
+      'backdated',true,current_date - 1,'40000000-0000-0000-0000-000000000004');
+    raise exception 'Backdated agreement change accepted';
+  exception when others then
+    if SQLERRM = 'Backdated agreement change accepted' then raise; end if;
+  end;
   begin
     update public.v2_agreement_versions set quoted_apartment_monthly_cents = 1
       where id = first_agreement;
@@ -169,7 +177,7 @@ do $$ declare r record; begin
 end $$;
 reset role;
 
-do $$ declare new_job uuid; new_check uuid; begin
+do $$ declare new_job uuid; new_check uuid; scheduled_check uuid; begin
   new_job := public.v2_create_job(
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Hourly employer', 'Support', 'active',
     '2026-02-01', null, '2026-02-01', 'hourly', 1850, 35,
@@ -181,15 +189,22 @@ do $$ declare new_job uuid; new_check uuid; begin
   if (select count(*) from public.job_compensation_terms where job_id = new_job) <> 1 then
     raise exception 'Atomic term creation failed';
   end if;
-  perform public.v2_change_job_terms(new_job, '2026-03-01', 'hourly', 2200, 40,
+  perform public.v2_change_job_terms(new_job, current_date + 1, 'hourly', 2200, 40,
     null, 'biweekly', '2026-03-13', 26, '40000000-0000-0000-0000-000000000004');
   if (select count(*) from public.job_compensation_terms where job_id = new_job) <> 2 then
     raise exception 'Versioned job terms missing';
   end if;
   if (select effective_to from public.job_compensation_terms
-      where job_id = new_job and effective_from = '2026-02-01') <> '2026-02-28' then
+      where job_id = new_job and effective_from = '2026-02-01') <> current_date then
     raise exception 'Old terms effective date mutated incorrectly';
   end if;
+  begin
+    perform public.v2_change_job_terms(new_job, current_date - 1, 'hourly', 100, 40,
+      null, 'biweekly', null, 26, '40000000-0000-0000-0000-000000000004');
+    raise exception 'Backdated job change accepted';
+  exception when others then
+    if SQLERRM = 'Backdated job change accepted' then raise; end if;
+  end;
   begin
     update public.job_compensation_terms set hourly_rate_cents = 1 where job_id = new_job;
     raise exception 'Historical terms were mutable';
@@ -202,6 +217,21 @@ do $$ declare new_job uuid; new_check uuid; begin
   end;
   insert into public.job_paychecks(job_id,pay_date,status)
     values (new_job,'2026-03-13','paid') returning id into new_check;
+  begin
+    update public.job_paychecks set actual_net_received_cents = 100 where id = new_check;
+    raise exception 'Received paycheck was mutable before settlement';
+  exception when check_violation then null;
+  end;
+  insert into public.job_paychecks(job_id,pay_date,status)
+    values (new_job,'2026-03-27','scheduled') returning id into scheduled_check;
+  update public.job_paychecks set status = 'paid', actual_gross_cents = 129500,
+    actual_net_received_cents = 110000, received_at = now()
+    where id = scheduled_check;
+  begin
+    update public.job_paychecks set actual_gross_cents = 1 where id = scheduled_check;
+    raise exception 'Recorded receipt was mutable';
+  exception when check_violation then null;
+  end;
   insert into public.v2_payrun_settlements(job_paycheck_id,owner_id,calculation_version,snapshot_json,settled_by)
     values (new_check,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','test-v2','{}'::jsonb,
       '40000000-0000-0000-0000-000000000004');

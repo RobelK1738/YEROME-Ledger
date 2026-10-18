@@ -52,7 +52,9 @@ test('scheduled checks do not count as received cash or withholding', () => {
     paychecks: [
       { id: 'scheduled', job_id: 'one', pay_date: '2026-11-01', status: 'scheduled' },
       { id: 'received', job_id: 'one', pay_date: '2026-10-01', status: 'paid',
-        actual_net_received_cents: 100000, federal_withheld_cents: 20000 },
+        actual_net_received_cents: 100000, federal_withheld_cents: 20000,
+        social_security_withheld_cents: 0, medicare_withheld_cents: 0,
+        additional_medicare_withheld_cents: 0, state_withheld_cents: 0 },
     ], asOf: '2026-10-18', taxYear: 2026,
   });
   assert.equal(projected.reconciliation.actualWithholdingCents, 20000);

@@ -64,10 +64,10 @@ export default function AdminPayRuns() {
       {checks.length ? <ul className="v2-list">{checks.map((check) => <li key={check.id}>
         <div><strong>{check.payDate}</strong> · {check.personName} · {check.employerName} · {check.status}</div>
         <div>{check.actualNetReceivedCents == null ? 'Actual net not recorded' : `Employer net deposit ${formatCurrency(check.actualNetReceivedCents)}`}</div>
-        <button className="btn btn--secondary btn--sm" onClick={() => { setEditing(check.id); setReceipt({
+        {check.status === 'scheduled' ? <button className="btn btn--secondary btn--sm" onClick={() => { setEditing(check.id); setReceipt({
           ...emptyReceipt, actualGross: check.actualGrossCents == null ? '' : String(check.actualGrossCents / 100),
           actualNet: check.actualNetReceivedCents == null ? '' : String(check.actualNetReceivedCents / 100),
-        }); }}>Record receipt</button>
+        }); }}>Record receipt</button> : null}
         {editing === check.id ? <form className="v2-form" onSubmit={(event) => { event.preventDefault(); submit(() => recordPaycheck({
           paycheckId: check.id,
           actualGrossCents: dollarsToCents(receipt.actualGross),
@@ -83,11 +83,12 @@ export default function AdminPayRuns() {
           {input('Actual gross ($)', receipt.actualGross, (value) => set('actualGross', value), true)}
           {input('Actual net deposited ($)', receipt.actualNet, (value) => set('actualNet', value), true)}
           {input('Actual hours', receipt.actualHours, (value) => set('actualHours', value))}
-          {input('Federal withheld ($)', receipt.federal, (value) => set('federal', value))}
-          {input('Social Security withheld ($)', receipt.ss, (value) => set('ss', value))}
-          {input('Medicare withheld ($)', receipt.medicare, (value) => set('medicare', value))}
-          {input('Additional Medicare withheld ($)', receipt.additionalMedicare, (value) => set('additionalMedicare', value))}
-          {input('State withheld ($)', receipt.state, (value) => set('state', value))}
+          <p className="muted">Enter each tax line from the paystub. Use 0 when the paystub shows no amount.</p>
+          {input('Federal withheld ($)', receipt.federal, (value) => set('federal', value), true)}
+          {input('Social Security withheld ($)', receipt.ss, (value) => set('ss', value), true)}
+          {input('Medicare withheld ($)', receipt.medicare, (value) => set('medicare', value), true)}
+          {input('Additional Medicare withheld ($)', receipt.additionalMedicare, (value) => set('additionalMedicare', value), true)}
+          {input('State withheld ($)', receipt.state, (value) => set('state', value), true)}
           {input('Other paycheck deductions ($)', receipt.other, (value) => set('other', value))}
           <div className="row"><button className="btn btn--primary" disabled={busy}>Save receipt</button>
             <button type="button" className="btn btn--secondary" onClick={() => setEditing(null)}>Cancel</button></div>

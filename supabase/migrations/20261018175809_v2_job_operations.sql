@@ -66,8 +66,8 @@ begin
   select * into v_current from public.job_compensation_terms
     where job_id = p_job and effective_to is null for update;
   if not found then raise exception 'Current job terms not found'; end if;
-  if p_effective_from <= v_current.effective_from then
-    raise exception 'New terms must start after current terms';
+  if p_effective_from <= v_current.effective_from or p_effective_from < current_date then
+    raise exception 'New terms must start prospectively after current terms';
   end if;
   if p_periods_per_year <= 0 or p_pay_frequency not in ('weekly','biweekly','semimonthly','monthly') then
     raise exception 'Invalid pay schedule';
@@ -153,7 +153,7 @@ begin
   select * into v_current from public.v2_agreement_versions
     where owner_id = p_owner and effective_to is null for update;
   if found then
-    if p_effective_from <= v_current.effective_from then
+    if p_effective_from <= v_current.effective_from or p_effective_from < current_date then
       raise exception 'Agreement change must be prospective';
     end if;
     update public.v2_agreement_versions set effective_to = p_effective_from - 1 where id = v_current.id;

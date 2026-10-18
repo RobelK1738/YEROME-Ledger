@@ -25,6 +25,17 @@ test("two $50k jobs combine for a single person's annual tax estimate", () => {
   assert.equal(estimate.totalTaxCents, 2_082_000);
 });
 
+test('2026 filing statuses use their own standard deductions and bracket widths', () => {
+  const federal = (status) => ownerTaxEstimate({
+    grossWagesCents: 10_000_000, settings: getTaxConfig2026(status),
+  }).federalIncomeTaxCents;
+  assert.equal(federal('single'), 1_317_000);
+  assert.equal(federal('mfs'), 1_317_000);
+  assert.equal(federal('mfj'), 764_000);
+  assert.equal(federal('hoh'), 958_800);
+  assert.throws(() => getTaxConfig2026('unknown'), /Unsupported/);
+});
+
 test('deduction adjustments affect federal taxable income, not payroll wages', () => {
   const estimate = ownerTaxEstimate({
     grossWagesCents: 5_000_000,
@@ -41,8 +52,8 @@ test('withholding and actual net deposit remain distinct from projected liabilit
     socialSecurityAnnualCapCents: 1_143_900,
     estimatedTaxPaymentsCents: 10_000,
     paychecks: [
-      { employerId: 'A', federalWithheldCents: 400_000, socialSecurityWithheldCents: 310_000, medicareWithheldCents: 72_500, actualNetReceivedCents: 4_000_000 },
-      { employerId: 'B', federalWithheldCents: 400_000, socialSecurityWithheldCents: 310_000, medicareWithheldCents: 72_500, actualNetReceivedCents: 4_000_000 },
+      { employerId: 'A', federalWithheldCents: 400_000, socialSecurityWithheldCents: 310_000, medicareWithheldCents: 72_500, additionalMedicareWithheldCents: 0, stateWithheldCents: 0, actualNetReceivedCents: 4_000_000 },
+      { employerId: 'B', federalWithheldCents: 400_000, socialSecurityWithheldCents: 310_000, medicareWithheldCents: 72_500, additionalMedicareWithheldCents: 0, stateWithheldCents: 0, actualNetReceivedCents: 4_000_000 },
     ],
   });
   assert.equal(result.actualWithholdingCents, 1_565_000);
@@ -60,11 +71,20 @@ test('two employers can withhold above the combined Social Security wage cap', (
     projectedLiabilityCents: projected.totalTaxCents,
     socialSecurityAnnualCapCents: projected.socialSecurityCents,
     paychecks: [
-      { socialSecurityWithheldCents: 620_000, actualNetReceivedCents: 8_000_000 },
-      { socialSecurityWithheldCents: 620_000, actualNetReceivedCents: 8_000_000 },
+      { federalWithheldCents: 0, socialSecurityWithheldCents: 620_000, medicareWithheldCents: 0, additionalMedicareWithheldCents: 0, stateWithheldCents: 0, actualNetReceivedCents: 8_000_000 },
+      { federalWithheldCents: 0, socialSecurityWithheldCents: 620_000, medicareWithheldCents: 0, additionalMedicareWithheldCents: 0, stateWithheldCents: 0, actualNetReceivedCents: 8_000_000 },
     ],
   });
   assert.equal(cash.actualSocialSecurityWithheldCents, 1_240_000);
   assert.equal(cash.potentialExcessSocialSecurityCents, 96_100);
   assert.equal(cash.actualNetReceivedCents, 16_000_000);
+});
+
+test('a missing paystub withholding field is unknown, not zero', () => {
+  const result = taxReconciliation({ projectedLiabilityCents: 100000,
+    paychecks: [{ federalWithheldCents: 10000, actualNetReceivedCents: 50000 }] });
+  assert.equal(result.actualNetReceivedCents, 50000);
+  assert.equal(result.actualWithholdingCents, null);
+  assert.equal(result.projectedGapCents, null);
+  assert.equal(result.missingWithholdingCount, 1);
 });

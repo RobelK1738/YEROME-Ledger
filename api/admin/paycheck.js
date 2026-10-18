@@ -52,10 +52,16 @@ export default async function handler(req, res) {
     if (patch.actual_gross_cents == null || patch.actual_net_received_cents == null) {
       return res.status(400).json({ error: 'Record actual gross and net deposit.' });
     }
+    if (['federal_withheld_cents','social_security_withheld_cents','medicare_withheld_cents',
+      'additional_medicare_withheld_cents','state_withheld_cents']
+      .some((field) => patch[field] == null)) {
+      return res.status(400).json({ error: 'Enter every paystub tax withholding amount, including zero.' });
+    }
     patch.status = 'paid';
     patch.received_at = new Date().toISOString();
     const { data, error } = await db.from('job_paychecks').update(patch)
-      .eq('id', body.paycheckId).select('id,job_id,pay_date,status,received_at').single();
+      .eq('id', body.paycheckId).eq('status', 'scheduled')
+      .select('id,job_id,pay_date,status,received_at').single();
     if (error) throw error;
     await serverAudit(db, { actorUserId: auth.user.id, action: 'v2.paycheck.received',
       entityType: 'job_paycheck', entityId: data.id,

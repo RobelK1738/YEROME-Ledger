@@ -11,9 +11,11 @@ export function taxReconciliation({ projectedLiabilityCents, estimatedTaxPayment
   ];
   let actualWithholdingCents = 0;
   let actualSocialSecurityWithheldCents = 0;
+  let missingWithholdingCount = 0;
   let actualNetReceivedCents = 0;
   let missingNetCount = 0;
   for (const paycheck of paychecks) {
+    if (withholdingFields.some((field) => paycheck[field] == null)) missingWithholdingCount++;
     for (const field of withholdingFields) {
       const amount = paycheck[field] ?? 0;
       if (!Number.isSafeInteger(amount) || amount < 0) throw new TypeError(`${field} must be nonnegative integer cents`);
@@ -30,12 +32,14 @@ export function taxReconciliation({ projectedLiabilityCents, estimatedTaxPayment
   }
   return {
     projectedLiabilityCents,
-    actualWithholdingCents,
-    actualSocialSecurityWithheldCents,
-    potentialExcessSocialSecurityCents: socialSecurityAnnualCapCents == null ? null :
+    actualWithholdingCents: missingWithholdingCount ? null : actualWithholdingCents,
+    actualSocialSecurityWithheldCents: missingWithholdingCount ? null : actualSocialSecurityWithheldCents,
+    missingWithholdingCount,
+    potentialExcessSocialSecurityCents: socialSecurityAnnualCapCents == null || missingWithholdingCount ? null :
       Math.max(0, actualSocialSecurityWithheldCents - socialSecurityAnnualCapCents),
     estimatedTaxPaymentsCents,
-    projectedGapCents: projectedLiabilityCents - actualWithholdingCents - estimatedTaxPaymentsCents,
+    projectedGapCents: missingWithholdingCount ? null :
+      projectedLiabilityCents - actualWithholdingCents - estimatedTaxPaymentsCents,
     actualNetReceivedCents,
     missingNetCount,
     actualNetComplete: missingNetCount === 0,
