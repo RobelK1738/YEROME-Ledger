@@ -27,7 +27,7 @@ production migration, Auth change, account deletion, PR merge, or deployment.
   check. This is an application-data restore proof, not a native Supabase
   platform or GoTrue recovery proof.
 - The restored database and production matched on row counts and full-row
-  SHA-based digests for all 50 `auth`, `public`, and `storage` tables after both
+  MD5 comparison digests for all 50 `auth`, `public`, and `storage` tables after both
   sessions used UTC. That includes 3 Auth users, 3 Auth identities, 2 Owners,
   12 jobs, 48 job paychecks, 50 costs, 12 cost allocations, and 75 audit rows.
   Restored roles matched all 30 production role names and attributes, excluding
