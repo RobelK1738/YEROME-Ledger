@@ -26,6 +26,8 @@ export function referralCommissionSummary({ referral, displayName, currentlyEarn
     return { calendarMonth: accrual.calendar_month,
       eligibleJobCount: accrual.eligible_job_count,
       accruedCents: Number(accrual.amount_cents), paidCents,
+      unverifiedPaidCents: payments.filter((payment) => payment.accrual_id === accrual.id && payment.evidence_verified !== true)
+        .reduce((sum, payment) => sum + Number(payment.amount_cents), 0),
       owedCents: Number(accrual.amount_cents) - paidCents,
       lastPaidAt: lastPaidByAccrual.get(accrual.id) || null };
   });
@@ -36,5 +38,6 @@ export function referralCommissionSummary({ referral, displayName, currentlyEarn
     ratePerJobCents, monthlyEquivalentCents: currentlyEarning ? eligibleJobCount * ratePerJobCents : 0,
     annualEquivalentCents: currentlyEarning ? eligibleJobCount * ratePerJobCents * 12 : 0,
     needsContractReview: false, accruedCents, paidCents,
+    unverifiedPaidCents: events.reduce((sum, event) => sum + event.unverifiedPaidCents, 0),
     owedCents: accruedCents - paidCents, events };
 }

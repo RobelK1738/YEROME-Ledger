@@ -39,7 +39,7 @@ export default async function handler(req, res) {
       const payments = [];
       for (let offset = 0; offset < accrualIds.length; offset += 100) {
         payments.push(...await allPages(() => db.from('v2_commission_payments')
-          .select('id,accrual_id,amount_cents,paid_at')
+          .select('id,accrual_id,amount_cents,paid_at,evidence_verified')
           .in('accrual_id', accrualIds.slice(offset, offset + 100)).order('paid_at').order('id')));
       }
       rows.push(referralCommissionSummary({ referral,

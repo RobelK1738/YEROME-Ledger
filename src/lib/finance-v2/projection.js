@@ -180,6 +180,7 @@ export function ownerStatementDto(projected) {
       partnerDueOriginalCents: row.partnerDueOriginalCents,
       partnerDueChangesCents: row.partnerDueChangesCents,
       partnerDueCents: row.partnerDueCents, paidCents: row.paidCents,
+      unverifiedPaidCents: row.unverifiedPaidCents || 0,
       owedCents: row.owedCents, overpaidCents: row.overpaidCents || 0,
       lastPaidAt: row.lastPaidAt || null,
       needsAdjustment: row.needsAdjustment === true,

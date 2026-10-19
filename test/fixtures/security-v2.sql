@@ -68,6 +68,31 @@ do $$ begin
   end if;
 end $$;
 
+-- Test-only evidence helpers, never installed by migrations or exposed by API.
+create function pg_temp.partner_allocation(p_obligation uuid,p_amount bigint,
+  p_date timestamptz,p_reference text,p_total bigint,p_key text,p_actor uuid)
+returns uuid language plpgsql as $$
+declare recipient uuid; transfer uuid;
+begin
+  select owner_id into recipient from public.v2_payrun_settlements where id = p_obligation;
+  transfer := public.v2_register_transfer(recipient,p_reference,p_total,p_date,'test-bank/source','test-recipient/account',p_actor);
+  perform public.v2_verify_transfer(transfer,recipient,p_total,p_date,p_reference,
+    'test-bank/source','test-recipient/account','synthetic-proof',p_actor);
+  return public.v2_record_partner_allocation(p_obligation,p_amount,transfer,p_key,p_actor);
+end;
+$$;
+create function pg_temp.commission_allocation(p_obligation uuid,p_amount bigint,
+  p_date timestamptz,p_reference text,p_total bigint,p_key text,p_actor uuid)
+returns uuid language plpgsql as $$
+declare recipient uuid; transfer uuid;
+begin
+  select r.referrer_owner_id into recipient from public.v2_commission_accruals a join public.referrals r on r.id = a.referral_id where a.id = p_obligation;
+  transfer := public.v2_register_transfer(recipient,p_reference,p_total,p_date,'test-bank/source','test-recipient/account',p_actor);
+  perform public.v2_verify_transfer(transfer,recipient,p_total,p_date,p_reference,
+    'test-bank/source','test-recipient/account','synthetic-proof',p_actor);
+  return public.v2_record_commission_allocation(p_obligation,p_amount,transfer,p_key,p_actor);
+end;
+$$;
 -- Synthetic approved policy exists only in this disposable test database.
 -- It validates the gated posting machinery without authorizing real money.
 do $$ declare v_owner uuid := 'dddddddd-dddd-dddd-dddd-dddddddddddd';
@@ -179,27 +204,27 @@ begin
     if SQLERRM = 'Mismatched replay accepted' then raise; end if;
   end;
   select id into v_line from public.v2_payrun_settlements where batch_id = v_batch;
-  v_payment := public.v2_record_partner_allocation(v_line,10000,'2026-03-01T12:00:00Z',
+  v_payment := pg_temp.partner_allocation(v_line,10000,'2026-03-01T12:00:00Z',
     'synthetic-payment',10000,'synthetic-payment-key',v_actor);
-  if public.v2_record_partner_allocation(v_line,10000,'2026-03-01T12:00:00Z',
+  if pg_temp.partner_allocation(v_line,10000,'2026-03-01T12:00:00Z',
       'synthetic-payment',10000,'synthetic-payment-key',v_actor) <> v_payment then
     raise exception 'Payment replay duplicated payment'; end if;
   begin
-    perform public.v2_record_partner_allocation(v_line,10000,'2026-03-01T12:00:00Z',
+    perform pg_temp.partner_allocation(v_line,10000,'2026-03-01T12:00:00Z',
       'synthetic-payment',10000,'fresh-key-same-transfer',v_actor);
     raise exception 'Duplicate external partner transfer accepted';
   exception when others then
     if SQLERRM <> 'External transfer already fully allocated' and SQLSTATE <> '23505' then raise; end if;
   end;
   begin
-    perform public.v2_record_partner_allocation(v_line,10000,'2026-03-02T12:00:00Z',
+    perform pg_temp.partner_allocation(v_line,10000,'2026-03-02T12:00:00Z',
       ' SYNTHETIC-PAYMENT ',10000,'collision-after-reload',v_actor);
     raise exception 'Repeated bank reference with conflicting evidence was accepted';
   exception when others then
     if SQLERRM <> 'External reference collision needs independent evidence review' then raise; end if;
   end;
   begin
-    perform public.v2_record_partner_allocation(v_line,50000,'2026-03-02T12:00:00Z',
+    perform pg_temp.partner_allocation(v_line,50000,'2026-03-02T12:00:00Z',
       'overpay',50000,'overpay-key',v_actor);
     raise exception 'Partner overpayment accepted';
   exception when others then
@@ -214,7 +239,7 @@ begin
   select id into v_correction from public.v2_paycheck_corrections
     where job_paycheck_id = v_check and sequence = 1;
   begin
-    perform public.v2_record_partner_allocation(v_line,47000,'2026-03-03T12:00:00Z',
+    perform pg_temp.partner_allocation(v_line,47000,'2026-03-03T12:00:00Z',
       'before-adjustment',47000,'before-adjustment-key',v_actor);
     raise exception 'Payment allowed before correction adjustment';
   exception when others then
@@ -235,7 +260,7 @@ begin
   exception when others then
     if SQLERRM <> 'Correction already reconciled under another key' then raise; end if;
   end;
-  perform public.v2_record_partner_allocation(v_line,47000,'2026-03-03T12:00:00Z',
+  perform pg_temp.partner_allocation(v_line,47000,'2026-03-03T12:00:00Z',
     'final-synthetic',47000,'final-payment-key',v_actor);
   if (select partner_due_cents +
       (select sum(partner_due_delta_cents) from public.v2_settlement_adjustments where settlement_id = v_line) -
@@ -330,7 +355,7 @@ begin
   select id into v_correction from public.v2_paycheck_corrections
     where job_paycheck_id = v_first and sequence = 1;
   begin
-    perform public.v2_record_partner_allocation(v_second_line,10000,
+    perform pg_temp.partner_allocation(v_second_line,10000,
       '2026-03-01T12:00:00Z','other-check-while-pending',10000,
       'blocked-other-check-payment',v_actor);
     raise exception 'Other check was paid during pending month correction';
@@ -363,21 +388,21 @@ begin
      is distinct from (37936::bigint,19064::bigint,123127::bigint,61873::bigint,
        69883::bigint,35117::bigint,71281::bigint,35819::bigint) then
     raise exception 'Corrected weighted allocations do not match independent cent fixture'; end if;
-  perform public.v2_record_partner_allocation(v_first_line,10000,
+  perform pg_temp.partner_allocation(v_first_line,10000,
     '2026-03-04T12:00:00Z','one-transfer-two-checks',20000,
     'first-check-transfer-allocation',v_actor);
   begin
-    perform public.v2_record_partner_allocation(v_first_line,10000,
+    perform pg_temp.partner_allocation(v_first_line,10000,
       '2026-03-04T12:00:00Z','one-transfer-two-checks',20000,
       'fresh-key-same-first-check',v_actor);
     raise exception 'One transfer allocated twice to the same paycheck';
   exception when unique_violation then null;
   end;
-  perform public.v2_record_partner_allocation(v_second_line,10000,
+  perform pg_temp.partner_allocation(v_second_line,10000,
     '2026-03-04T12:00:00Z','one-transfer-two-checks',20000,
     'second-check-transfer-allocation',v_actor);
   begin
-    perform public.v2_record_partner_allocation(v_first_line,1,
+    perform pg_temp.partner_allocation(v_first_line,1,
       '2026-03-04T12:00:00Z','one-transfer-two-checks',20000,
       'overallocated-transfer',v_actor);
     raise exception 'External transfer allocation exceeded bank total';
@@ -537,15 +562,26 @@ do $$ declare accrual uuid; referral uuid; payment uuid; begin
   if (select amount_cents from public.v2_commission_accruals where id = accrual) <> 40000 then
     raise exception 'Fixed commission accrual wrong';
   end if;
-  payment := public.v2_record_commission_allocation(accrual,10000,'2026-03-05T12:00:00Z',
+  payment := pg_temp.commission_allocation(accrual,10000,'2026-03-05T12:00:00Z',
     'external-payment-test',20000,'commission-payment-key',
     '40000000-0000-0000-0000-000000000004');
-  if public.v2_record_commission_allocation(accrual,10000,'2026-03-05T12:00:00Z',
+  -- Fourth review repro: unused Miki transfer capacity cannot pay another person.
+  begin
+    perform public.v2_record_partner_allocation(
+      (select id from public.v2_payrun_settlements
+        where owner_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee' order by pay_date limit 1),
+      10000,(select id from public.v2_external_transfers where reference_key = 'external-payment-test'),
+      'wrong-beneficiary', '40000000-0000-0000-0000-000000000004');
+    raise exception 'Cross-recipient allocation accepted';
+  exception when others then
+    if SQLERRM <> 'Transfer beneficiary does not match obligation' then raise; end if;
+  end;
+  if pg_temp.commission_allocation(accrual,10000,'2026-03-05T12:00:00Z',
       'external-payment-test',20000,'commission-payment-key',
       '40000000-0000-0000-0000-000000000004') <> payment then
     raise exception 'Commission replay failed'; end if;
   begin
-    perform public.v2_record_commission_allocation(accrual,10000,'2026-03-05T12:00:00Z',
+    perform pg_temp.commission_allocation(accrual,10000,'2026-03-05T12:00:00Z',
       'external-payment-test',20000,'fresh-commission-key',
       '40000000-0000-0000-0000-000000000004');
     raise exception 'Duplicate external commission transfer accepted';
@@ -556,7 +592,7 @@ do $$ declare accrual uuid; referral uuid; payment uuid; begin
     raise exception 'Commission owed wrong';
   end if;
   begin
-    perform public.v2_record_commission_allocation(accrual,40000,'2026-03-06T12:00:00Z',
+    perform pg_temp.commission_allocation(accrual,40000,'2026-03-06T12:00:00Z',
       'excess',40000,'excess-commission-key',
       '40000000-0000-0000-0000-000000000004');
     raise exception 'Overpayment permitted';
@@ -642,6 +678,7 @@ do $$ declare count_rows int; begin
      (select count(*) from public.v2_payrun_settlements) <> 0 or
      (select count(*) from public.v2_partner_payments) <> 0 or
      (select count(*) from public.v2_external_transfers) <> 0 or
+     (select count(*) from public.v2_transfer_verifications) <> 0 or
      (select count(*) from public.v2_commission_payments) <> 0 or
      (select count(*) from public.v2_settlement_policy_approvals) <> 0 or
      (select count(*) from public.v2_paycheck_corrections) <> 0 then

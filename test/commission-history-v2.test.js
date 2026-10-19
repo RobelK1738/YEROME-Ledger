@@ -21,6 +21,7 @@ test('ended or replaced referral keeps accrued, paid and owed history with zero 
   assert.equal(historical.monthlyEquivalentCents, 0);
   assert.equal(historical.accruedCents, 40000);
   assert.equal(historical.paidCents, 10000);
+  assert.equal(historical.unverifiedPaidCents, 10000);
   assert.equal(historical.owedCents, 30000);
   assert.equal(historical.events[0].owedCents, 30000);
   assert.equal(referralCurrentlyEarning(newReferral, true,

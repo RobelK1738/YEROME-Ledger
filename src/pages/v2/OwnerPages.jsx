@@ -97,6 +97,7 @@ export function OwnerPayments() {
         <li key={row.paycheckId}><strong>Paycheck dated {row.payDate}</strong>
           <p>Original share: {money(row.partnerDueOriginalCents)} · recorded changes: {money(row.partnerDueChangesCents)} · current due: {money(row.partnerDueCents)}</p>
           <p>Recorded paid: {money(row.paidCents)} · outstanding: {money(row.owedCents)}</p>
+          {row.unverifiedPaidCents > 0 ? <p>Some historical payments need recipient and evidence review. Recorded balances are preserved; do not send replacement funds automatically.</p> : null}
           {row.overpaidCents ? <p>Recorded amount above revised due: {money(row.overpaidCents)}. Administrator review required.</p> : null}
           {row.lastPaidAt ? <p>Last recorded distribution: {row.lastPaidAt.slice(0, 10)}</p> : null}
           {row.needsAdjustment ? <p>Paystub correction is pending a contractual adjustment review.</p> : null}
@@ -133,6 +134,7 @@ export function OwnerCommissions() {
       {referrals.length ? <ul className="v2-list">{referrals.map((row) => <li key={row.referralId}>
         <strong>{row.referredDisplayName}</strong> · {row.currentlyEarning ? `${row.eligibleJobCount} eligible active jobs` : 'No current accrual estimate'}
         <p>{money(row.ratePerJobCents)} per job/month · {money(row.monthlyEquivalentCents)} monthly equivalent</p>
+        {row.unverifiedPaidCents > 0 ? <p>Some historical commission payments need recipient and evidence review. Recorded balances are preserved pending review.</p> : null}
         <p>Recorded accrued: {money(row.accruedCents)} · paid: {money(row.paidCents)} · owed: {money(row.owedCents)}</p>
         {row.events?.length ? <details><summary>Recorded months</summary><ul className="v2-list">
           {row.events.map((event) => <li key={event.calendarMonth}>{event.calendarMonth} · {event.eligibleJobCount} eligible jobs · accrued {money(event.accruedCents)} · paid {money(event.paidCents)} · owed {money(event.owedCents)}</li>)}

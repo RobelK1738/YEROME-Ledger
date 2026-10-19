@@ -1,5 +1,6 @@
-import { adminClient, requireAdmin, readJsonBody, serverAudit } from '../_lib/supabaseAdmin.js';
-import { generateScheduledPayDates } from '../../src/lib/formatting/dates.js';
+import { adminClient, requireAdmin, readJsonBody } from '../_lib/supabaseAdmin.js';
+import { generateEffectivePayDates } from '../../src/lib/formatting/dates.js';
+import { allPages } from '../_lib/v2.js';
 import { validatedReceipt } from '../../src/lib/finance-v2/receipt.js';
 
 const INPUT_FIELDS = {
@@ -29,21 +30,17 @@ export default async function handler(req, res) {
       const { data: job, error: jobError } = await db.from('jobs')
         .select('id').eq('id', body.jobId).single();
       if (jobError) throw jobError;
-      const { data: term, error: termError } = await db.from('job_compensation_terms')
-        .select('first_pay_date,pay_frequency').eq('job_id', job.id)
-        .is('effective_to', null).single();
-      if (termError) throw termError;
-      let dates;
-      try { dates = generateScheduledPayDates(term.first_pay_date, body.firstPayDate,
-        count, term.pay_frequency); }
+      const terms = await allPages(() => db.from('job_compensation_terms')
+        .select('id,first_pay_date,pay_frequency,effective_from,effective_to')
+        .eq('job_id', job.id).order('effective_from').order('id'));
+      let schedule;
+      try { schedule = generateEffectivePayDates(terms, body.firstPayDate, count); }
       catch (invalid) { return res.status(400).json({ error: invalid.message }); }
-      const rows = dates.map((date) => ({ job_id: job.id, pay_date: date, status: 'scheduled' }));
-      const { error } = await db.from('job_paychecks').upsert(rows,
-        { onConflict: 'job_id,pay_date', ignoreDuplicates: true });
+      const { dates, termId } = schedule;
+      const { error } = await db.rpc('v2_schedule_paychecks', {
+        p_job: job.id, p_term: termId, p_dates: dates, p_actor: auth.user.id,
+      });
       if (error) throw error;
-      await serverAudit(db, { actorUserId: auth.user.id, action: 'v2.pay_schedule.generated',
-        entityType: 'job', entityId: job.id, metadata: { count: dates.length,
-          first_pay_date: dates[0], last_pay_date: dates.at(-1) } });
       return res.status(200).json({ scheduledDates: dates.length });
     }
     if (!body.paycheckId) return res.status(400).json({ error: 'Paycheck ID required.' });

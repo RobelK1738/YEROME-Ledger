@@ -24,6 +24,7 @@ test('receipt correction changes all Admin totals and the owner due without losi
   assert.equal(view.current.gangCutCents, 29900);
   assert.equal(view.current.yeromeResidualCents, 107100);
   assert.equal(view.owedCents, 47000);
+  assert.equal(view.unverifiedPaidCents, 10000);
   assert.equal(view.overpaidCents, 0);
   const admin = adminPostedSettlementDto({ ...row, id: 'settlement-a',
     job_paycheck_id: 'check-a', pay_date: '2026-02-13', receipt_correction_sequence: 0 },
@@ -40,11 +41,19 @@ test('receipt correction changes all Admin totals and the owner due without losi
     partnerDueOriginalCents: admin.original.partnerDueCents,
     partnerDueChangesCents: admin.changes.partnerDueCents,
     partnerDueCents: admin.partnerDueCents, paidCents: admin.paidCents,
+    unverifiedPaidCents: admin.unverifiedPaidCents,
+    reference: 'private-bank-ref', sourceAccountAlias: 'private-source',
+    destinationAccountAlias: 'private-destination', evidenceReference: 'private-proof',
     owedCents: admin.owedCents }] }));
   assert.equal(person.partnerSettlements[0].partnerDueCents, 57000);
   assert.equal(person.partnerSettlements[0].partnerDueChangesCents, -500);
   assert.equal('yeromeResidualCents' in person.partnerSettlements[0], false);
   assert.equal('actualCostCents' in person.partnerSettlements[0], false);
+  assert.equal(person.partnerSettlements[0].unverifiedPaidCents, 10000);
+  assert.equal(JSON.stringify(person).includes('private-'), false);
+  const verified = postedSettlementView(row, [], [{ amount_cents: 10000, evidence_verified: true }]);
+  assert.equal(verified.paidCents, 10000);
+  assert.equal(verified.unverifiedPaidCents, 0);
   assert.throws(() => postedSettlementView(row, [{ ...adjustment,
     yerome_delta_cents: 0 }]), /conserve cents/);
 });

@@ -1,3 +1,4 @@
+import adminTransfers from '../server/admin/transfers.js';
 import adminCommissions from '../server/admin/commissions.js';
 import adminJob from '../server/admin/job.js';
 import adminOverview from '../server/admin/overview.js';
@@ -14,6 +15,7 @@ import ownersResetPassword from '../server/owners/reset-password.js';
 import ownersSetStatus from '../server/owners/set-status.js';
 
 const routes = Object.freeze({
+  'admin/transfers': adminTransfers,
   'admin/commissions': adminCommissions,
   'admin/job': adminJob,
   'admin/overview': adminOverview,

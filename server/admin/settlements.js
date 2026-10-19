@@ -156,7 +156,7 @@ async function postedRows(db, ownerId, month) {
   if (!settlements.length) return [];
   const ids = settlements.map((row) => row.id);
   const [payments, adjustments] = await Promise.all([
-    allPages(() => db.from('v2_partner_payments').select('settlement_id,amount_cents,paid_at')
+    allPages(() => db.from('v2_partner_payments').select('settlement_id,amount_cents,paid_at,evidence_verified')
       .in('settlement_id', ids).order('paid_at')),
     allPages(() => db.from('v2_settlement_adjustments')
       .select('settlement_id,partner_due_delta_cents,after_tax_delta_cents,quoted_cost_delta_cents,actual_cost_delta_cents,commission_delta_cents,gang_delta_cents,yerome_delta_cents,created_at,receipt_correction_id')
@@ -220,16 +220,14 @@ export default async function handler(req, res) {
       return res.status(201).json({ batchId: data });
     }
     if (body.action === 'payment') {
-      const total = Number(body.transferAmountCents);
-      if (!Number.isSafeInteger(total) || total <= 0 ||
-          !Number.isSafeInteger(Number(body.amountCents)) || total < Number(body.amountCents) ||
-          !body.idempotencyKey) {
-        return res.status(400).json({ error: 'External transfer total and stable request key required.' });
+      const amount = Number(body.amountCents);
+      if (!body.transferId || !body.settlementId || !Number.isSafeInteger(amount) || amount <= 0 ||
+          !String(body.idempotencyKey || '').trim()) {
+        return res.status(400).json({ error: 'Verified transfer, obligation, positive amount and request key required.' });
       }
       const { data, error } = await db.rpc('v2_record_partner_allocation', {
-        p_settlement: body.settlementId, p_amount_cents: body.amountCents,
-        p_paid_at: body.paidAt, p_reference: body.externalReference,
-        p_transfer_total: total, p_key: body.idempotencyKey, p_actor: auth.user.id,
+        p_settlement: body.settlementId, p_amount_cents: amount,
+        p_transfer: body.transferId, p_key: body.idempotencyKey, p_actor: auth.user.id,
       });
       if (error) throw error;
       return res.status(201).json({ paymentId: data });
@@ -248,6 +246,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Unsupported settlement action.' });
   } catch (error) {
     console.error('Settlement request failed', error?.code || 'unknown');
+    if (error?.message === 'Transfer beneficiary does not match obligation')
+      return res.status(409).json({ error: 'This transfer was sent to another recipient. Choose a verified transfer to the person owed.' });
+    if (error?.message === 'Transfer must be verified against external evidence before allocation')
+      return res.status(409).json({ error: 'Verify the transfer against external evidence before allocating it.' });
     if (body.action === 'payment') {
       if (error?.message?.includes('External reference collision'))
         return res.status(409).json({ error: 'Bank reference conflicts with recorded transfer evidence. Independent review is required.' });

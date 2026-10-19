@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useAsync } from '../../hooks/useAsync.js';
-import { getAdminOverview, getAdminCommissions, getAdminSettlements, postAdminSettlement, postAdminCommission, schedulePaychecks, recordPaycheck } from '../../lib/data/v2.js';
+import { getAdminOverview, getAdminTransfers, getAdminCommissions, getAdminSettlements, postAdminSettlement, postAdminCommission, schedulePaychecks, recordPaycheck } from '../../lib/data/v2.js';
 import { dollarsToCents } from '../../lib/finance-v2/index.js';
 import { formatCurrency } from '../../lib/formatting/money.js';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
 import { Card } from '../../components/ui/Card.jsx';
 import { Loading } from '../../components/ui/Loading.jsx';
 import { ErrorState } from '../../components/ui/ErrorState.jsx';
+
+import AdminTransfers from './AdminTransfers.jsx';
 
 const emptyReceipt = { actualGross: '', actualNet: '', actualHours: '', federal: '', ss: '', medicare: '',
   additionalMedicare: '', state: '', other: '0', reason: '' };
@@ -21,6 +23,7 @@ function paymentKey(kind, obligationId, reference) {
 export default function AdminPayRuns() {
   const { data, loading, error, refresh } = useAsync(getAdminOverview, []);
   const { data: commissionData, error: commissionError, refresh: refreshCommissions } = useAsync(getAdminCommissions, []);
+  const { data: transferData, error: transferError, refresh: refreshTransfers } = useAsync(getAdminTransfers, []);
   const [schedule, setSchedule] = useState({ jobId: '', firstPayDate: '', count: '26' });
   const [editing, setEditing] = useState(null);
   const [receipt, setReceipt] = useState(emptyReceipt);
@@ -29,13 +32,21 @@ export default function AdminPayRuns() {
   const [formError, setFormError] = useState('');
   const [commissionMonth, setCommissionMonth] = useState('');
   const [commissionReferralId, setCommissionReferralId] = useState('');
-  const [commissionPayment, setCommissionPayment] = useState({ accrualId: '', amount: '', transferTotal: '', paidAt: '', paymentReference: '' });
+  const [commissionPayment, setCommissionPayment] = useState({ accrualId: '', amount: '', transferId: '' });
   const [settlementQuery, setSettlementQuery] = useState({ ownerId: '', month: '' });
   const [settlementData, setSettlementData] = useState(null);
-  const [payment, setPayment] = useState({ settlementId: '', amount: '', transferTotal: '', paidAt: '', reference: '' });
+  const [payment, setPayment] = useState({ settlementId: '', amount: '', transferId: '' });
   if (loading) return <Loading full label="Loading pay runs…" />;
   if (error) return <ErrorState error={error} onRetry={refresh} />;
   const people = data?.people || [];
+  const transfers = transferData?.transfers || [];
+  const verifiedTransfers = (recipient) => transfers.filter((row) => row.status === 'verified' &&
+    row.recipientOwnerId === recipient && row.availableCents > 0);
+  const transferSelect = (value, onChange, recipient) => <label className="v2-field"><span>Verified transfer to this recipient</span>
+    <select required value={value} onChange={(event) => onChange(event.target.value)}>
+      <option value="">Choose verified transfer</option>{verifiedTransfers(recipient).map((row) =>
+        <option key={row.id} value={row.id}>{row.paidAt.slice(0, 10)} · {row.reference} · {formatCurrency(row.availableCents)} available</option>)}
+    </select></label>;
   const jobs = people.flatMap((person) => person.myJobs.map((job) => ({ ...job, personName: person.displayName })));
   const checks = people.flatMap((person) => person.myPaychecks.map((check) => ({
     ...check, personName: person.displayName,
@@ -56,7 +67,7 @@ export default function AdminPayRuns() {
   }
   async function submit(work, success) {
     setBusy(true); setFormError(''); setMessage('');
-    try { await work(); setMessage(success); setEditing(null); await Promise.all([refresh(), refreshCommissions()]); }
+    try { await work(); setMessage(success); setEditing(null); await Promise.all([refresh(), refreshCommissions(), refreshTransfers()]); }
     catch (caught) { setFormError(caught.message || 'Could not save pay run.'); }
     finally { setBusy(false); }
   }
@@ -67,14 +78,13 @@ export default function AdminPayRuns() {
     <PageHeader title="Pay Runs" subtitle="Actual employer deposits and withholding are recorded separately from contractual estimates." />
     {message ? <p role="status" className="v2-notice">{message}</p> : null}
     {formError ? <p role="alert" className="form-error">{formError}</p> : null}
-    <Card title="Schedule employer pay dates" subtitle="Dates must match the recorded employer payday anchor. Twice-monthly calendars need review before scheduling.">
+    <Card title="Schedule employer pay dates" subtitle="Dates use the payroll terms applicable on the first requested payday. Generate each term separately when a schedule changes; twice-monthly calendars need review.">
       <form className="v2-form" onSubmit={(event) => { event.preventDefault(); submit(() => schedulePaychecks({
         ...schedule, count: Number(schedule.count),
       }), 'Pay dates scheduled.'); }}>
         <label className="v2-field"><span>Job</span><select required value={schedule.jobId}
           onChange={(event) => setSchedule({ ...schedule, jobId: event.target.value })}>
-          <option value="">Choose job</option>{jobs.map((job) => <option key={job.id} value={job.id}
-            disabled={job.payFrequency === 'semimonthly'}>{job.personName} · {job.employerName}{job.payFrequency === 'semimonthly' ? ' · calendar review required' : ''}</option>)}</select></label>
+          <option value="">Choose job</option>{jobs.map((job) => <option key={job.id} value={job.id}>{job.personName} · {job.employerName}</option>)}</select></label>
         <label className="v2-field"><span>First payday</span><input required type="date" value={schedule.firstPayDate}
           onChange={(event) => setSchedule({ ...schedule, firstPayDate: event.target.value })} /></label>
         <label className="v2-field"><span>Number of pay dates</span><input required type="number" min="1" max="52" value={schedule.count}
@@ -118,15 +128,18 @@ export default function AdminPayRuns() {
         </form> : null}
       </li>)}</ul> : <p className="muted">No dated paychecks yet. Generate a schedule to begin.</p>}
     </Card>
+    {transferError ? <ErrorState error={transferError} onRetry={refreshTransfers} /> : null}
+    <AdminTransfers people={people} transfers={transfers} busy={busy} submit={submit} />
     <Card title="Contractual settlement" subtitle="A completed month can post only under a signed, enabled settlement policy. No policy is seeded.">
       <form className="v2-form" onSubmit={(event) => { event.preventDefault(); submit(() => loadSettlements(), 'Settlement month loaded.'); }}>
         <label className="v2-field"><span>US Person</span><select required value={settlementQuery.ownerId}
-          onChange={(event) => { setSettlementQuery({ ...settlementQuery, ownerId: event.target.value }); setSettlementData(null); }}>
+          onChange={(event) => { setSettlementQuery({ ...settlementQuery, ownerId: event.target.value }); setSettlementData(null); setPayment({ settlementId: '', amount: '', transferId: '' }); }}>
           <option value="">Choose person</option>{people.map((person) =>
             <option key={person.ownerId} value={person.ownerId}>{person.displayName}</option>)}</select></label>
         <label className="v2-field"><span>Completed calendar month</span><input required type="month"
           value={settlementQuery.month} onChange={(event) => {
             setSettlementQuery({ ...settlementQuery, month: event.target.value }); setSettlementData(null);
+            setPayment({ settlementId: '', amount: '', transferId: '' });
           }} /></label>
         <button className="btn btn--secondary" disabled={busy}>Review month</button>
       </form>
@@ -145,6 +158,7 @@ export default function AdminPayRuns() {
       {settlementData?.settlements?.length ? <ul className="v2-list">{settlementData.settlements.map((row) =>
         <li key={row.settlementId}><strong>Paycheck dated {row.payDate}</strong>
           <p>Current partner due {formatCurrency(row.partnerDueCents)} · paid {formatCurrency(row.paidCents)} · owed {formatCurrency(row.owedCents)}</p>
+          {row.unverifiedPaidCents > 0 ? <p>Some historical payments need recipient and evidence review. Recorded balances are preserved; do not send replacement funds automatically.</p> : null}
           {row.overpaidCents ? <p>Recorded amount exceeds revised due by {formatCurrency(row.overpaidCents)}. Credit or recovery review required.</p> : null}
           <details><summary>Original, changes and current totals</summary>
             {[
@@ -171,22 +185,15 @@ export default function AdminPayRuns() {
         event.preventDefault(); submit(async () => {
           await postAdminSettlement({ action: 'payment', ownerId: settlementQuery.ownerId,
             calendarMonth: `${settlementQuery.month}-01`, settlementId: payment.settlementId,
-            amountCents: dollarsToCents(payment.amount), paidAt: payment.paidAt,
-            transferAmountCents: dollarsToCents(payment.transferTotal),
-            externalReference: payment.reference,
-            idempotencyKey: paymentKey('partner', payment.settlementId, payment.reference) });
+            amountCents: dollarsToCents(payment.amount), transferId: payment.transferId,
+            idempotencyKey: paymentKey('partner', payment.settlementId, payment.transferId) });
           await loadSettlements();
-          setPayment({ settlementId: '', amount: '', transferTotal: '', paidAt: '', reference: '' });
+          setPayment({ settlementId: '', amount: '', transferId: '' });
         }, 'External partner payment recorded.');
       }}>
-        <p>Record an external payment only after it occurred. One bank transfer can be allocated to several distinct obligations up to its verified total.</p>
+        <p>Allocate a verified transfer to this person's contractual share. Register and verify new transfers above first.</p>
         {input('Amount allocated to this paycheck ($)', payment.amount, (value) => setPayment({ ...payment, amount: value }), true)}
-        {input('Total amount of that bank transfer ($)', payment.transferTotal,
-          (value) => setPayment({ ...payment, transferTotal: value }), true)}
-        <label className="v2-field"><span>Paid at</span><input required type="date" value={payment.paidAt}
-          onChange={(event) => setPayment({ ...payment, paidAt: event.target.value })} /></label>
-        <label className="v2-field"><span>Unique bank transaction reference</span><input required value={payment.reference}
-          onChange={(event) => setPayment({ ...payment, reference: event.target.value })} /></label>
+        {transferSelect(payment.transferId, (value) => setPayment({ ...payment, transferId: value }), settlementQuery.ownerId)}
         <button className="btn btn--primary" disabled={busy}>Record payment</button>
       </form> : null}
     </Card>
@@ -206,28 +213,25 @@ export default function AdminPayRuns() {
       {(commissionData?.accruals || []).length ? <ul className="v2-list">
         {commissionData.accruals.map((accrual) => <li key={accrual.id}>
           {accrual.calendarMonth} · {accrual.eligibleJobCount} eligible jobs · accrued {formatCurrency(accrual.accruedCents)} · paid {formatCurrency(accrual.paidCents)} · owed {formatCurrency(accrual.owedCents)}
+          {accrual.unverifiedPaidCents > 0 ? <p>Historical commission payments need recipient and evidence review. Do not send replacement funds automatically.</p> : null}
         </li>)}
       </ul> : <p className="muted">No full-month accrual has been posted.</p>}
       <form className="v2-form" onSubmit={(event) => { event.preventDefault(); submit(() => postAdminCommission({
         action: 'payment', accrualId: commissionPayment.accrualId,
         amountCents: dollarsToCents(commissionPayment.amount),
-        transferAmountCents: dollarsToCents(commissionPayment.transferTotal),
-        paidAt: commissionPayment.paidAt, paymentReference: commissionPayment.paymentReference,
+        transferId: commissionPayment.transferId,
         idempotencyKey: paymentKey('commission', commissionPayment.accrualId,
-          commissionPayment.paymentReference),
+          commissionPayment.transferId),
       }), 'External commission payment recorded.'); }}>
         <label className="v2-field"><span>Accrual with amount owed</span><select required value={commissionPayment.accrualId}
-          onChange={(event) => setCommissionPayment({ ...commissionPayment, accrualId: event.target.value })}>
+          onChange={(event) => setCommissionPayment({ ...commissionPayment, accrualId: event.target.value, transferId: '' })}>
           <option value="">Choose accrual</option>{(commissionData?.accruals || []).filter((row) => row.owedCents > 0)
             .map((row) => <option key={row.id} value={row.id}>{row.calendarMonth} · {formatCurrency(row.owedCents)} owed</option>)}</select></label>
         {input('Amount allocated to this accrual ($)', commissionPayment.amount,
           (value) => setCommissionPayment({ ...commissionPayment, amount: value }), true)}
-        {input('Total amount of that bank transfer ($)', commissionPayment.transferTotal,
-          (value) => setCommissionPayment({ ...commissionPayment, transferTotal: value }), true)}
-        <label className="v2-field"><span>External payment date</span><input required type="date" value={commissionPayment.paidAt}
-          onChange={(event) => setCommissionPayment({ ...commissionPayment, paidAt: event.target.value })} /></label>
-        <label className="v2-field"><span>Unique bank transaction reference</span><input required value={commissionPayment.paymentReference}
-          onChange={(event) => setCommissionPayment({ ...commissionPayment, paymentReference: event.target.value })} /></label>
+        {transferSelect(commissionPayment.transferId, (value) => setCommissionPayment({ ...commissionPayment, transferId: value }),
+          commissionData?.referrals?.find((referral) => referral.id === commissionData?.accruals?.find((accrual) =>
+            accrual.id === commissionPayment.accrualId)?.referralId)?.referrerOwnerId)}
         <button className="btn btn--primary" disabled={busy}>Record payment</button>
       </form>
     </Card>

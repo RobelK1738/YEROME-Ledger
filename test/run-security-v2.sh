@@ -25,11 +25,17 @@ pg_ctl -D "$test_tmp/data" -o "-k $test_tmp -p $test_port -c listen_addresses=''
 psql -h "$test_tmp" -p "$test_port" -d postgres -v ON_ERROR_STOP=1 \
   -f "$test_root/test/fixtures/auth-shim.sql" >/dev/null
 for migration_file in "$test_root"/supabase/migrations/*.sql; do
+  if [[ "$migration_file" == *20261019073828_v2_verified_transfer_beneficiaries.sql ]]; then
+    psql -h "$test_tmp" -p "$test_port" -d postgres -v ON_ERROR_STOP=1 \
+      -f "$test_root/test/fixtures/review4-before-migration.sql" >/dev/null
+  fi
   psql -h "$test_tmp" -p "$test_port" -d postgres -v ON_ERROR_STOP=1 \
     -f "$migration_file" >/dev/null
 done
 psql -h "$test_tmp" -p "$test_port" -d postgres -v ON_ERROR_STOP=1 \
   -f "$test_root/test/fixtures/security-v2.sql" >/dev/null
+psql -h "$test_tmp" -p "$test_port" -d postgres -v ON_ERROR_STOP=1 \
+  -f "$test_root/test/fixtures/review4.sql" >/dev/null
 psql -h "$test_tmp" -p "$test_port" -d postgres -v ON_ERROR_STOP=1 \
   -f "$test_root/supabase/seed.sql" >/dev/null
 seed_rows="$(psql -h "$test_tmp" -p "$test_port" -d postgres -At -v ON_ERROR_STOP=1 \

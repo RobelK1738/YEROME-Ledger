@@ -118,3 +118,17 @@ export function formatDate(iso) {
     return iso;
   }
 }
+
+/** A request stays within one uniquely applicable term, including future changes. */
+export function generateEffectivePayDates(terms, requestedStart, count) {
+  const covering = (date) => terms.filter((term) => term.effective_from <= date &&
+    (!term.effective_to || term.effective_to >= date));
+  const candidates = covering(requestedStart);
+  if (candidates.length !== 1) throw new RangeError('A unique payroll term is required for the requested date');
+  const term = candidates[0];
+  const dates = generateScheduledPayDates(term.first_pay_date, requestedStart, count, term.pay_frequency);
+  if (dates.some((date) => covering(date).length !== 1 || covering(date)[0].id !== term.id)) {
+    throw new RangeError('Schedule crosses a payroll term boundary; generate each period separately');
+  }
+  return { termId: term.id, dates };
+}

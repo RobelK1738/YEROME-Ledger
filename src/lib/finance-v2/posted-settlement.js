@@ -30,6 +30,8 @@ export function postedSettlementView(row, adjustments = [], payments = []) {
   const paidCents = payments.reduce((sum, payment) => sum + Number(payment.amount_cents), 0);
   if (!Number.isSafeInteger(paidCents)) throw new RangeError('Payment total is not integer cents');
   return { original, changes, current, paidCents,
+    unverifiedPaidCents: payments.filter((payment) => payment.evidence_verified !== true)
+      .reduce((sum, payment) => sum + Number(payment.amount_cents), 0),
     owedCents: Math.max(current.partnerDueCents - paidCents, 0),
     overpaidCents: Math.max(paidCents - current.partnerDueCents, 0),
     lastPaidAt: payments.map((payment) => payment.paid_at).sort().at(-1) || null };
@@ -40,7 +42,7 @@ export function adminPostedSettlementDto(row, adjustments = [], payments = []) {
   return { settlementId: row.id, paycheckId: row.job_paycheck_id,
     payDate: row.pay_date, ...ledger.current,
     original: ledger.original, changes: ledger.changes,
-    paidCents: ledger.paidCents, owedCents: ledger.owedCents,
+    paidCents: ledger.paidCents, unverifiedPaidCents: ledger.unverifiedPaidCents, owedCents: ledger.owedCents,
     overpaidCents: ledger.overpaidCents,
     receiptCorrectionSequence: row.receipt_correction_sequence };
 }

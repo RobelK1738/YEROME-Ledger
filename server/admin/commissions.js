@@ -21,18 +21,13 @@ export default async function handler(req, res) {
       }
       if (body.action === 'payment') {
         const amount = Number(body.amountCents);
-        const transferTotal = Number(body.transferAmountCents);
         if (!body.accrualId || !Number.isSafeInteger(amount) || amount <= 0 ||
-            !Number.isSafeInteger(transferTotal) || transferTotal < amount ||
-            !body.paidAt || !String(body.paymentReference || '').trim() ||
-            !String(body.idempotencyKey || '').trim()) {
-          return res.status(400).json({ error: 'Accrual, allocation, external transfer total, date, reference and request key are required.' });
+            !body.transferId || !String(body.idempotencyKey || '').trim()) {
+          return res.status(400).json({ error: 'Accrual, positive amount, verified transfer and request key required.' });
         }
         const { data, error } = await db.rpc('v2_record_commission_allocation', {
           p_accrual: body.accrualId, p_amount_cents: amount,
-          p_paid_at: body.paidAt, p_reference: String(body.paymentReference).trim(),
-          p_transfer_total: transferTotal, p_key: body.idempotencyKey,
-          p_actor: auth.user.id,
+          p_transfer: body.transferId, p_key: body.idempotencyKey, p_actor: auth.user.id,
         });
         if (error) throw error;
         return res.status(201).json({ paymentId: data });
@@ -48,7 +43,7 @@ export default async function handler(req, res) {
         .select('id,referral_id,calendar_month,eligible_job_count,amount_cents')
         .order('calendar_month', { ascending: false }).order('id')),
       allPages(() => db.from('v2_commission_payments')
-        .select('id,accrual_id,amount_cents,paid_at').order('id')),
+        .select('id,accrual_id,amount_cents,paid_at,evidence_verified').order('id')),
     ]);
     const names = new Map(owners.map((owner) => [owner.id, owner.display_name]));
     const accruals = recordedAccruals.map((accrual) => {
@@ -58,6 +53,8 @@ export default async function handler(req, res) {
         id: accrual.id, referralId: accrual.referral_id, calendarMonth: accrual.calendar_month,
         eligibleJobCount: accrual.eligible_job_count,
         accruedCents: Number(accrual.amount_cents), paidCents,
+        unverifiedPaidCents: payments.filter((payment) => payment.accrual_id === accrual.id && payment.evidence_verified !== true)
+          .reduce((sum, payment) => sum + Number(payment.amount_cents), 0),
         owedCents: Number(accrual.amount_cents) - paidCents,
       };
     });
@@ -79,6 +76,10 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error('Admin commission operation failed', error?.code || 'unknown');
+    if (error?.message === 'Transfer beneficiary does not match obligation')
+      return res.status(409).json({ error: 'This transfer was sent to another recipient. Choose a verified transfer to the person owed.' });
+    if (error?.message === 'Transfer must be verified against external evidence before allocation')
+      return res.status(409).json({ error: 'Verify the transfer against external evidence before allocating it.' });
     if (error?.message?.includes('External reference collision'))
       return res.status(409).json({ error: 'Bank reference conflicts with recorded transfer evidence. Independent review is required.' });
     if (error?.message?.includes('External transfer already fully allocated') || error?.code === '23505')

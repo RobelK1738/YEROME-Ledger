@@ -33,3 +33,6 @@ export const postAdminCommission = (input) => v2Request('/api/admin/commissions'
 export const getAdminSettlements = (ownerId, calendarMonth) =>
   v2Request(`/api/admin/settlements?ownerId=${encodeURIComponent(ownerId)}&calendarMonth=${encodeURIComponent(calendarMonth)}`);
 export const postAdminSettlement = (input) => v2Request('/api/admin/settlements', 'POST', input);
+
+export const getAdminTransfers = () => v2Request('/api/admin/transfers');
+export const postAdminTransfer = (input) => v2Request('/api/admin/transfers', 'POST', input);

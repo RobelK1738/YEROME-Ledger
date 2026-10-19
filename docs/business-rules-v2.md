@@ -178,3 +178,37 @@ initiate funds movement.
 Tax references: [IRS 2026 inflation adjustments](https://www.irs.gov/irb/2025-45_IRB),
 [SSA 2026 contribution base](https://www.ssa.gov/oact/cola/cbb.html), and
 [IRS excess Social Security withholding](https://www.irs.gov/taxtopics/tc608).
+
+## Fourth-review payment evidence and dated schedules
+
+An external transfer is a single-recipient USD bank transfer, identified by an
+immutable US Person recipient, normalized bank reference, amount, actual date,
+source provider/account alias and destination account alias. Account aliases and
+proof references are Admin-only; no credentials or full bank account numbers
+belong in these fields. Registration alone does not mark anything paid. A separate
+immutable Admin verification records a reference to retained external evidence
+and confirms the recipient, USD amount, date, reference and accounts. This is a
+human evidence attestation, not automated bank reconciliation or bank execution.
+
+SQL derives a partner payment's recipient from the posted settlement and a
+commission payment's recipient from the immutable referral identity. One verified
+transfer may cover both streams for the **same person**, within its total. It may
+never fund another person's obligation. Multi-recipient bank batches are outside
+this single-transfer flow; they require documented per-recipient evidence and a
+separately approved model. Provider/account aliases are recorded, but reference
+uniqueness deliberately remains global: changing an alias cannot evade replay
+protection. Genuine namespace collisions need independent review; no override is
+enabled.
+
+Pre-existing payments retain their original recorded balances and are explicitly
+flagged when recipient/evidence verification is absent. Do not automatically
+re-pay, reassign, or mark them verified. Historical records require independent
+review and an approved audited correction if necessary.
+
+Schedule requests select the unique term applicable on the first requested pay
+date, even if a newer or future term is open-ended. Every generated date must stay
+inside that term and its recorded cadence. Crossing a term boundary rejects the
+whole request; generate each term separately. SQL revalidates the dates while
+holding term locks and atomically records inserted dates and an audit entry.
+Existing receipts remain unchanged on retry. Missing/overlapping terms,
+semi-monthly anchors and moved-payday exceptions continue to require review.

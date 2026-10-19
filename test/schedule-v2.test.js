@@ -23,3 +23,23 @@ test('semi-monthly recurrence is blocked until two employer anchors are recorded
   assert.throws(() => generatePayDates('2026-01-20', 4, 'semimonthly'),
     /two verified payday anchors/);
 });
+
+
+test('historical and future payroll schedules select dated terms and reject crossings', async () => {
+  const { generateEffectivePayDates } = await import('../src/lib/formatting/dates.js');
+  const terms = [
+    { id: 'old', effective_from: '2026-01-01', effective_to: '2026-06-30',
+      first_pay_date: '2026-02-13', pay_frequency: 'biweekly' },
+    { id: 'new', effective_from: '2026-07-01', effective_to: null,
+      first_pay_date: '2026-07-31', pay_frequency: 'monthly' },
+  ];
+  assert.deepEqual(generateEffectivePayDates(terms, '2026-02-13', 2),
+    { termId: 'old', dates: ['2026-02-13', '2026-02-27'] });
+  assert.deepEqual(generateEffectivePayDates(terms, '2026-07-31', 2),
+    { termId: 'new', dates: ['2026-07-31', '2026-08-31'] });
+  assert.throws(() => generateEffectivePayDates(terms, '2026-06-19', 2), /term boundary/);
+  assert.throws(() => generateEffectivePayDates(terms, '2025-12-31', 1), /unique payroll term/);
+  assert.throws(() => generateEffectivePayDates([...terms, { ...terms[0], id: 'overlap' }],
+    '2026-02-13', 2), /unique payroll term/);
+  assert.throws(() => generateEffectivePayDates(terms, '2026-02-14', 1), /recorded payroll cadence/);
+});

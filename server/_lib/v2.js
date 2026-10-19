@@ -134,7 +134,7 @@ export async function loadPersonProjection(db, ownerId, asOf = new Date().toISOS
     const settlementIds = settlementRows.slice(offset, offset + 100).map((row) => row.id);
     const [pagePayments, pageAdjustments, pageReconciliations] = await Promise.all([
       allPages(() => db.from('v2_partner_payments')
-        .select('settlement_id,amount_cents,paid_at').in('settlement_id', settlementIds)
+        .select('settlement_id,amount_cents,paid_at,evidence_verified').in('settlement_id', settlementIds)
         .order('paid_at')),
       allPages(() => db.from('v2_settlement_adjustments')
         .select('settlement_id,after_tax_delta_cents,quoted_cost_delta_cents,actual_cost_delta_cents,partner_due_delta_cents,commission_delta_cents,gang_delta_cents,yerome_delta_cents,receipt_correction_id')
@@ -158,7 +158,7 @@ export async function loadPersonProjection(db, ownerId, asOf = new Date().toISOS
       partnerDueOriginalCents: ledger.original.partnerDueCents,
       partnerDueChangesCents: ledger.changes.partnerDueCents,
       partnerDueCents: ledger.current.partnerDueCents,
-      paidCents: ledger.paidCents, owedCents: ledger.owedCents,
+      paidCents: ledger.paidCents, unverifiedPaidCents: ledger.unverifiedPaidCents, owedCents: ledger.owedCents,
       overpaidCents: ledger.overpaidCents, lastPaidAt: ledger.lastPaidAt,
       needsAdjustment: Boolean(check?.corrected &&
         (Number(row.receipt_correction_sequence) + coveredCorrections) <
