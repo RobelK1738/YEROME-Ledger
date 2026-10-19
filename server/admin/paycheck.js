@@ -1,5 +1,5 @@
 import { adminClient, requireAdmin, readJsonBody, serverAudit } from '../_lib/supabaseAdmin.js';
-import { generatePayDates } from '../../src/lib/formatting/dates.js';
+import { generateScheduledPayDates } from '../../src/lib/formatting/dates.js';
 import { validatedReceipt } from '../../src/lib/finance-v2/receipt.js';
 
 const INPUT_FIELDS = {
@@ -27,9 +27,16 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Choose a job, first pay date and 1–52 dates.' });
       }
       const { data: job, error: jobError } = await db.from('jobs')
-        .select('id,pay_frequency').eq('id', body.jobId).single();
+        .select('id').eq('id', body.jobId).single();
       if (jobError) throw jobError;
-      const dates = generatePayDates(body.firstPayDate, count, job.pay_frequency);
+      const { data: term, error: termError } = await db.from('job_compensation_terms')
+        .select('first_pay_date,pay_frequency').eq('job_id', job.id)
+        .is('effective_to', null).single();
+      if (termError) throw termError;
+      let dates;
+      try { dates = generateScheduledPayDates(term.first_pay_date, body.firstPayDate,
+        count, term.pay_frequency); }
+      catch (invalid) { return res.status(400).json({ error: invalid.message }); }
       const rows = dates.map((date) => ({ job_id: job.id, pay_date: date, status: 'scheduled' }));
       const { error } = await db.from('job_paychecks').upsert(rows,
         { onConflict: 'job_id,pay_date', ignoreDuplicates: true });

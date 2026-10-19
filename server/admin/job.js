@@ -1,6 +1,6 @@
 import { adminClient, requireAdmin, readJsonBody } from '../_lib/supabaseAdmin.js';
 
-const FREQUENCIES = new Set(['weekly', 'biweekly', 'semimonthly', 'monthly']);
+const FREQUENCIES = new Set(['weekly', 'biweekly', 'monthly']);
 const STATUSES = new Set(['pending', 'active', 'paused', 'ended', 'archived']);
 
 function money(value) {
@@ -15,6 +15,7 @@ function terms(body) {
   const salary = mode === 'salary' ? money(body.annualSalaryCents) : null;
   const periods = Number(body.periodsPerYear || 26);
   if (!['hourly', 'salary'].includes(mode) || !FREQUENCIES.has(body.payFrequency) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(body.firstPayDate || '') ||
       !Number.isInteger(periods) || periods <= 0 ||
       (mode === 'hourly' && (rate === null || !Number.isFinite(hours) || hours < 0)) ||
       (mode === 'salary' && salary === null)) return null;
@@ -24,7 +25,7 @@ function terms(body) {
     p_weekly_hours: hours,
     p_annual_salary_cents: salary,
     p_pay_frequency: body.payFrequency,
-    p_first_pay_date: body.firstPayDate || null,
+    p_first_pay_date: body.firstPayDate,
     p_periods_per_year: periods,
   };
 }

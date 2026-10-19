@@ -89,6 +89,15 @@ only paid checks with a 2026 pay date count; all pages of dated checks are read.
 Gross must equal net deposit plus each recorded withholding and other deduction.
 Corrections append a full replacement paystub snapshot and audit event; the
 original received check remains immutable.
+Weekly, biweekly and monthly expected dates are independently derived from
+each job's effective-dated first payday and employer cadence. A missing date
+blocks completed-month posting even if no schedule row was generated. A second
+full-month job with no checks also blocks posting. The SQL posting transaction
+checks this independently of the browser proposal. Payroll holidays, moved
+paydays, and explicit no-pay exceptions need a verified employer calendar and
+signed payout rule before a month can post. Semi-monthly scheduling and
+settlement are disabled because one payday cannot define two monthly anchors;
+existing historical semi-monthly terms are retained for review.
 
 ## Versions, history and limits
 
@@ -119,8 +128,8 @@ a verified agreement/referral. It does not decide partial-month entitlements.
 ## Decision-gated dated settlement proposal
 
 `src/lib/finance-v2/settlement.js` is a tested proposal for a **closed person
-calendar month**. Under a proposed receipt-net basis, all scheduled paychecks
-in that month must have reconciled receipts. Their actual net deposits form `A`;
+calendar month**. Under a proposed receipt-net basis, every independently
+expected payday in that month must have a reconciled receipt. Their actual net deposits form `A`;
 one quoted apartment charge and one actual apartment spend are applied per
 person, and only full-month active jobs are counted. The same 50/50, $200/job,
 and 10% formulas apply. Monthly totals are allocated to dated checks in
@@ -137,6 +146,17 @@ version, receipt correction sequence, calculation version, idempotency key,
 partner due, recorded payments, outstanding amount and immutable formula-derived
 correction adjustments. It does not initiate a transfer.
 
+New partner and commission payment records point to one immutable external
+transfer identity keyed by a normalized bank reference, date and verified
+total. One transfer may be allocated to distinct obligations, but each
+transfer-obligation pair can be recorded once and total allocations cannot
+exceed the transfer amount. Stable request keys make repeated POSTs idempotent.
+Old payment rows remain intact and unlinked; their references block new reuse
+until independently reconciled. An apparent reference collision or a bank
+that reuses identifiers requires separate evidence review, not a silent
+duplicate or an invented alternate reference. Recording a payment does not
+initiate funds movement.
+
 ## Decision register
 
 | Decision | Safe current behavior | Owner action before enabling settlement |
@@ -150,6 +170,8 @@ correction adjustments. It does not initiate a transfer.
 | Employer W-2 deposits versus partner distributions | Keep separate, no automatic movement | Accounting/legal signoff on structure |
 | Dated settlement receipt basis and allocation | Gate all real posting; proposed closed-month net-deposit basis only in tests | Approve or replace the basis, charge allocation, payment timing and signed policy reference |
 | Revised share below an already recorded payment | Block formula reconciliation and further payment; surface the unresolved amount | Approve documented credit or recovery process before any such correction is settled |
+| Employer payday changes, holiday shifts and semi-monthly anchors | Block ambiguous months and new semi-monthly schedules | Record verified calendar/exception dates and approve treatment before settlement |
+| Repeated bank reference or legacy payment match | Block new recognition; preserve old rows | Independently verify transfer identity and approve an audited resolution |
 | State tax and future tax years | Texas 2026 only | Provide reviewed versioned parameters |
 | Historical three-way and old referral rows | Do not auto-map or pay | Review identity, signed terms and migration evidence |
 

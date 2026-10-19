@@ -3,6 +3,7 @@ import { allPages } from '../_lib/v2.js';
 import { PACKAGE_V1 } from '../../src/lib/finance-v2/index.js';
 import { settlementProposal } from '../../src/lib/finance-v2/settlement.js';
 import { adminPostedSettlementDto } from '../../src/lib/finance-v2/posted-settlement.js';
+import { expectedPayDatesForMonth } from '../../src/lib/formatting/dates.js';
 
 const monthValid = (value) => /^\d{4}-(0[1-9]|1[0-2])-01$/.test(value || '');
 const monthEnd = (month) => new Date(Date.UTC(Number(month.slice(0, 4)),
@@ -34,13 +35,17 @@ async function readMonth(db, ownerId, month) {
       'A verified agreement must cover the full calendar month.' };
   const ids = jobs.map((job) => job.id);
   if (!ids.length) return { policyApproved: true, proposal: null, reviewReason: 'No jobs for this US Person.' };
-  const [events, checks] = await Promise.all([
+  const [events, checks, terms] = await Promise.all([
     allPages(() => db.from('v2_job_status_events').select('job_id,status,effective_from,event_order')
       .in('job_id', ids).lte('effective_from', end)
       .order('effective_from').order('event_order')),
     allPages(() => db.from('job_paychecks').select('id,job_id,pay_date,status,actual_gross_cents,actual_net_received_cents,federal_withheld_cents,social_security_withheld_cents,medicare_withheld_cents,additional_medicare_withheld_cents,state_withheld_cents,other_deductions_cents')
       .in('job_id', ids).gte('pay_date', month).lte('pay_date', end)
       .order('pay_date').order('id')),
+    allPages(() => db.from('job_compensation_terms')
+      .select('job_id,first_pay_date,pay_frequency,effective_from,effective_to')
+      .in('job_id', ids).lte('effective_from', month)
+      .or(`effective_to.is.null,effective_to.gte.${end}`).order('job_id')),
   ]);
   const eligible = jobs.filter((job) => {
     if (!job.start_date || job.start_date > month || (job.end_date && job.end_date < end)) return false;
@@ -54,6 +59,26 @@ async function readMonth(db, ownerId, month) {
     (!job.end_date || job.end_date >= month) && !eligible.includes(job));
   if (partialJob || !eligible.length) return { policyApproved: true, proposal: null,
     reviewReason: 'Partial, paused, or unverified job status needs a signed payout policy.' };
+  const expected = new Set();
+  for (const job of eligible) {
+    const coveringTerms = terms.filter((term) => term.job_id === job.id);
+    if (coveringTerms.length !== 1) return { policyApproved: true, proposal: null,
+      reviewReason: `Job ${job.id} needs one verified pay calendar covering the full month.` };
+    let dates;
+    try { dates = expectedPayDatesForMonth(coveringTerms[0].first_pay_date, month,
+      coveringTerms[0].pay_frequency); }
+    catch (invalid) { return { policyApproved: true, proposal: null,
+      reviewReason: `Job ${job.id}: ${invalid.message}` }; }
+    if (!dates.length) return { policyApproved: true, proposal: null,
+      reviewReason: `Job ${job.id} has no expected payday in this month; review the employer calendar.` };
+    for (const date of dates) expected.add(`${job.id}:${date}`);
+  }
+  const received = new Set(checks.map((check) => `${check.job_id}:${check.pay_date}`));
+  const missing = [...expected].filter((key) => !received.has(key));
+  const unexpected = [...received].filter((key) => !expected.has(key));
+  if (missing.length || unexpected.length) return { policyApproved: true, proposal: null,
+    reviewReason: missing.length ? `Missing expected paycheck for ${missing[0].replace(':', ' on ')} (${missing.length} missing).` :
+      `Paycheck ${unexpected[0].replace(':', ' on ')} is outside the recorded employer cadence.` };
   if (agreement.partnership === 'MIKI_REFERRAL_2_WAY') {
     const referrals = await unwrap(db.from('referrals').select('id,start_date,end_date')
       .eq('referred_owner_id', ownerId).eq('commission_basis_type', 'flat_per_active_job_month')
@@ -195,10 +220,16 @@ export default async function handler(req, res) {
       return res.status(201).json({ batchId: data });
     }
     if (body.action === 'payment') {
-      const { data, error } = await db.rpc('v2_record_partner_payment', {
+      const total = Number(body.transferAmountCents);
+      if (!Number.isSafeInteger(total) || total <= 0 ||
+          !Number.isSafeInteger(Number(body.amountCents)) || total < Number(body.amountCents) ||
+          !body.idempotencyKey) {
+        return res.status(400).json({ error: 'External transfer total and stable request key required.' });
+      }
+      const { data, error } = await db.rpc('v2_record_partner_allocation', {
         p_settlement: body.settlementId, p_amount_cents: body.amountCents,
         p_paid_at: body.paidAt, p_reference: body.externalReference,
-        p_key: body.idempotencyKey, p_actor: auth.user.id,
+        p_transfer_total: total, p_key: body.idempotencyKey, p_actor: auth.user.id,
       });
       if (error) throw error;
       return res.status(201).json({ paymentId: data });
@@ -217,6 +248,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Unsupported settlement action.' });
   } catch (error) {
     console.error('Settlement request failed', error?.code || 'unknown');
+    if (body.action === 'payment') {
+      if (error?.message?.includes('External reference collision'))
+        return res.status(409).json({ error: 'Bank reference conflicts with recorded transfer evidence. Independent review is required.' });
+      if (error?.message?.includes('External transfer already fully allocated') || error?.code === '23505')
+        return res.status(409).json({ error: 'This bank transfer is already allocated to this obligation or has no remaining amount.' });
+    }
     return res.status(409).json({ error: 'Settlement needs receipt, agreement, policy, or history review.' });
   }
 }

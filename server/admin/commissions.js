@@ -21,13 +21,17 @@ export default async function handler(req, res) {
       }
       if (body.action === 'payment') {
         const amount = Number(body.amountCents);
+        const transferTotal = Number(body.transferAmountCents);
         if (!body.accrualId || !Number.isSafeInteger(amount) || amount <= 0 ||
-            !body.paidAt || !String(body.paymentReference || '').trim()) {
-          return res.status(400).json({ error: 'Accrual, amount, date and external payment reference are required.' });
+            !Number.isSafeInteger(transferTotal) || transferTotal < amount ||
+            !body.paidAt || !String(body.paymentReference || '').trim() ||
+            !String(body.idempotencyKey || '').trim()) {
+          return res.status(400).json({ error: 'Accrual, allocation, external transfer total, date, reference and request key are required.' });
         }
-        const { data, error } = await db.rpc('v2_record_commission_payment', {
+        const { data, error } = await db.rpc('v2_record_commission_allocation', {
           p_accrual: body.accrualId, p_amount_cents: amount,
           p_paid_at: body.paidAt, p_reference: String(body.paymentReference).trim(),
+          p_transfer_total: transferTotal, p_key: body.idempotencyKey,
           p_actor: auth.user.id,
         });
         if (error) throw error;
@@ -75,6 +79,10 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error('Admin commission operation failed', error?.code || 'unknown');
+    if (error?.message?.includes('External reference collision'))
+      return res.status(409).json({ error: 'Bank reference conflicts with recorded transfer evidence. Independent review is required.' });
+    if (error?.message?.includes('External transfer already fully allocated') || error?.code === '23505')
+      return res.status(409).json({ error: 'This bank transfer is already allocated to this accrual or has no remaining amount.' });
     return res.status(400).json({ error: 'Could not complete the commission record.' });
   }
 }

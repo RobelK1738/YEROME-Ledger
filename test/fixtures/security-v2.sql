@@ -56,6 +56,16 @@ do $$ begin
       'public.v2_reconcile_settlement_correction(uuid,uuid,text,uuid)', 'EXECUTE') then
     raise exception 'Arbitrary settlement reallocations or owner corrections remain executable';
   end if;
+  if has_function_privilege('service_role',
+      'public.v2_record_partner_payment(uuid,bigint,timestamptz,text,text,uuid)','EXECUTE')
+     or has_function_privilege('service_role',
+      'public.v2_record_commission_payment(uuid,bigint,timestamptz,text,uuid)','EXECUTE')
+     or has_function_privilege('authenticated',
+      'public.v2_record_partner_allocation(uuid,bigint,timestamptz,text,bigint,text,uuid)','EXECUTE')
+     or has_function_privilege('authenticated',
+      'public.v2_record_commission_allocation(uuid,bigint,timestamptz,text,bigint,text,uuid)','EXECUTE') then
+    raise exception 'Unsafe payment recording RPC remains executable';
+  end if;
 end $$;
 
 -- Synthetic approved policy exists only in this disposable test database.
@@ -70,8 +80,8 @@ begin
   v_agreement := public.v2_change_agreement(v_owner,'DIRECT_2_WAY',65000,90000,
     'synthetic-signed-contract',true,'2026-02-01',v_actor);
   v_job := public.v2_create_job(v_owner,'Synthetic Employer','Support','active',
-    '2026-02-01',null,'2026-02-01','hourly',1850,35,null,'biweekly',
-    '2026-02-13',26,v_actor);
+    '2026-02-01',null,'2026-02-01','hourly',1850,35,null,'monthly',
+    '2026-02-13',12,v_actor);
   insert into public.job_paychecks(job_id,pay_date,status)
     values (v_job,'2026-02-13','scheduled') returning id into v_check;
   perform public.v2_record_receipt(v_check,
@@ -169,14 +179,28 @@ begin
     if SQLERRM = 'Mismatched replay accepted' then raise; end if;
   end;
   select id into v_line from public.v2_payrun_settlements where batch_id = v_batch;
-  v_payment := public.v2_record_partner_payment(v_line,10000,'2026-03-01T12:00:00Z',
-    'synthetic-payment','synthetic-payment-key',v_actor);
-  if public.v2_record_partner_payment(v_line,10000,'2026-03-01T12:00:00Z',
-      'synthetic-payment','synthetic-payment-key',v_actor) <> v_payment then
+  v_payment := public.v2_record_partner_allocation(v_line,10000,'2026-03-01T12:00:00Z',
+    'synthetic-payment',10000,'synthetic-payment-key',v_actor);
+  if public.v2_record_partner_allocation(v_line,10000,'2026-03-01T12:00:00Z',
+      'synthetic-payment',10000,'synthetic-payment-key',v_actor) <> v_payment then
     raise exception 'Payment replay duplicated payment'; end if;
   begin
-    perform public.v2_record_partner_payment(v_line,50000,'2026-03-02T12:00:00Z',
-      'overpay','overpay-key',v_actor);
+    perform public.v2_record_partner_allocation(v_line,10000,'2026-03-01T12:00:00Z',
+      'synthetic-payment',10000,'fresh-key-same-transfer',v_actor);
+    raise exception 'Duplicate external partner transfer accepted';
+  exception when others then
+    if SQLERRM <> 'External transfer already fully allocated' and SQLSTATE <> '23505' then raise; end if;
+  end;
+  begin
+    perform public.v2_record_partner_allocation(v_line,10000,'2026-03-02T12:00:00Z',
+      ' SYNTHETIC-PAYMENT ',10000,'collision-after-reload',v_actor);
+    raise exception 'Repeated bank reference with conflicting evidence was accepted';
+  exception when others then
+    if SQLERRM <> 'External reference collision needs independent evidence review' then raise; end if;
+  end;
+  begin
+    perform public.v2_record_partner_allocation(v_line,50000,'2026-03-02T12:00:00Z',
+      'overpay',50000,'overpay-key',v_actor);
     raise exception 'Partner overpayment accepted';
   exception when others then
     if SQLERRM = 'Partner overpayment accepted' then raise; end if;
@@ -190,8 +214,8 @@ begin
   select id into v_correction from public.v2_paycheck_corrections
     where job_paycheck_id = v_check and sequence = 1;
   begin
-    perform public.v2_record_partner_payment(v_line,47000,'2026-03-03T12:00:00Z',
-      'before-adjustment','before-adjustment-key',v_actor);
+    perform public.v2_record_partner_allocation(v_line,47000,'2026-03-03T12:00:00Z',
+      'before-adjustment',47000,'before-adjustment-key',v_actor);
     raise exception 'Payment allowed before correction adjustment';
   exception when others then
     if SQLERRM = 'Payment allowed before correction adjustment' then raise; end if;
@@ -211,8 +235,8 @@ begin
   exception when others then
     if SQLERRM <> 'Correction already reconciled under another key' then raise; end if;
   end;
-  perform public.v2_record_partner_payment(v_line,47000,'2026-03-03T12:00:00Z',
-    'final-synthetic','final-payment-key',v_actor);
+  perform public.v2_record_partner_allocation(v_line,47000,'2026-03-03T12:00:00Z',
+    'final-synthetic',47000,'final-payment-key',v_actor);
   if (select partner_due_cents +
       (select sum(partner_due_delta_cents) from public.v2_settlement_adjustments where settlement_id = v_line) -
       (select sum(amount_cents) from public.v2_partner_payments where settlement_id = v_line)
@@ -306,8 +330,8 @@ begin
   select id into v_correction from public.v2_paycheck_corrections
     where job_paycheck_id = v_first and sequence = 1;
   begin
-    perform public.v2_record_partner_payment(v_second_line,10000,
-      '2026-03-01T12:00:00Z','other-check-while-pending',
+    perform public.v2_record_partner_allocation(v_second_line,10000,
+      '2026-03-01T12:00:00Z','other-check-while-pending',10000,
       'blocked-other-check-payment',v_actor);
     raise exception 'Other check was paid during pending month correction';
   exception when others then
@@ -339,6 +363,122 @@ begin
      is distinct from (37936::bigint,19064::bigint,123127::bigint,61873::bigint,
        69883::bigint,35117::bigint,71281::bigint,35819::bigint) then
     raise exception 'Corrected weighted allocations do not match independent cent fixture'; end if;
+  perform public.v2_record_partner_allocation(v_first_line,10000,
+    '2026-03-04T12:00:00Z','one-transfer-two-checks',20000,
+    'first-check-transfer-allocation',v_actor);
+  begin
+    perform public.v2_record_partner_allocation(v_first_line,10000,
+      '2026-03-04T12:00:00Z','one-transfer-two-checks',20000,
+      'fresh-key-same-first-check',v_actor);
+    raise exception 'One transfer allocated twice to the same paycheck';
+  exception when unique_violation then null;
+  end;
+  perform public.v2_record_partner_allocation(v_second_line,10000,
+    '2026-03-04T12:00:00Z','one-transfer-two-checks',20000,
+    'second-check-transfer-allocation',v_actor);
+  begin
+    perform public.v2_record_partner_allocation(v_first_line,1,
+      '2026-03-04T12:00:00Z','one-transfer-two-checks',20000,
+      'overallocated-transfer',v_actor);
+    raise exception 'External transfer allocation exceeded bank total';
+  exception when others then
+    if SQLERRM <> 'External transfer already fully allocated' then raise; end if;
+  end;
+  if (select count(*) from public.v2_external_transfers
+      where reference_key = 'one-transfer-two-checks') <> 1 or
+     (select count(*) from public.v2_partner_payments
+       where transfer_id = (select id from public.v2_external_transfers
+         where reference_key = 'one-transfer-two-checks')) <> 2 then
+    raise exception 'One transfer was not allocated across two obligations'; end if;
+end $$;
+
+-- Rehearse missing dates that were never inserted into job_paychecks. Roll
+-- back this synthetic month after the two rejection assertions.
+do $$ declare v_owner uuid := 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+  v_actor uuid := '40000000-0000-0000-0000-000000000004';
+  v_job uuid; v_other uuid; v_first uuid; v_second uuid;
+  v_agreement uuid; v_policy uuid; v_snapshot jsonb;
+begin
+  begin
+    insert into public.owners(id,username,display_name)
+      values (v_owner,'missing-dates','Missing Dates Fixture');
+    begin
+      perform public.v2_create_job(v_owner,'Unsupported Twice Monthly','Support','active',
+        '2026-02-01',null,'2026-02-01','hourly',1850,35,null,'semimonthly',
+        '2026-02-20',24,v_actor);
+      raise exception 'Semi-monthly job was accepted without two anchors';
+    exception when others then
+      if SQLERRM <> 'Semi-monthly payroll needs two verified payday anchors' then raise; end if;
+    end;
+    v_agreement := public.v2_change_agreement(v_owner,'DIRECT_2_WAY',65000,90000,
+      'synthetic-missing-dates',true,'2026-02-01',v_actor);
+    v_job := public.v2_create_job(v_owner,'Biweekly Employer','Support','active',
+      '2026-02-01',null,'2026-02-01','hourly',1850,35,null,'biweekly',
+      '2026-02-13',26,v_actor);
+    insert into public.job_paychecks(job_id,pay_date,status)
+      values (v_job,'2026-02-13','scheduled') returning id into v_first;
+    perform public.v2_record_receipt(v_first,
+      '{"actual_gross_cents":350000,"actual_net_received_cents":300000,
+        "federal_withheld_cents":50000,"social_security_withheld_cents":0,
+        "medicare_withheld_cents":0,"additional_medicare_withheld_cents":0,
+        "state_withheld_cents":0,"other_deductions_cents":0}'::jsonb,v_actor);
+    insert into public.v2_settlement_policy_approvals(owner_id,policy_version,
+      agreement_reference,legal_review_reference,effective_from,enabled,approved_at,approved_by)
+      values (v_owner,'receipt-net-closed-month-proposal-v1',
+        'synthetic-missing-dates','synthetic-legal-test','2026-02-01',true,now(),v_actor)
+      returning id into v_policy;
+    v_snapshot := jsonb_build_object(
+      'calculationVersion','receipt-net-closed-month-proposal-v1',
+      'ownerId',v_owner,'calendarMonth','2026-02-01',
+      'agreementVersionId',v_agreement,'partnership','DIRECT_2_WAY',
+      'activeJobCount',1,'afterTaxCents',300000,'quotedCostCents',185000,
+      'actualCostCents',105000,'partnerDueCents',57500,'commissionCents',0,
+      'gangCutCents',30000,'yeromeResidualCents',107500,
+      'lines',jsonb_build_array(jsonb_build_object('paycheckId',v_first,
+        'payDate','2026-02-13','receiptCorrectionSequence',0,
+        'sourceGrossCents',350000,'sourceNetCents',300000,
+        'quotedCostCents',185000,'actualCostCents',105000,
+        'partnerDueCents',57500,'commissionCents',0,
+        'gangCutCents',30000,'yeromeResidualCents',107500)));
+    begin
+      perform public.v2_post_settlement_batch(v_policy,v_snapshot,'missing-unscheduled',v_actor);
+      raise exception 'Unscheduled Feb 27 check was accepted';
+    exception when others then
+      if position('Missing expected paid paycheck' in SQLERRM) <> 1
+         or position('2026-02-27' in SQLERRM) = 0 then raise; end if;
+    end;
+    insert into public.job_paychecks(job_id,pay_date,status)
+      values (v_job,'2026-02-27','scheduled') returning id into v_second;
+    perform public.v2_record_receipt(v_second,
+      '{"actual_gross_cents":0,"actual_net_received_cents":0,
+        "federal_withheld_cents":0,"social_security_withheld_cents":0,
+        "medicare_withheld_cents":0,"additional_medicare_withheld_cents":0,
+        "state_withheld_cents":0,"other_deductions_cents":0}'::jsonb,v_actor);
+    v_other := public.v2_create_job(v_owner,'Unscheduled Weekly Employer','Support','active',
+      '2026-02-01',null,'2026-02-01','hourly',1850,35,null,'weekly',
+      '2026-02-06',52,v_actor);
+    v_snapshot := v_snapshot || jsonb_build_object('activeJobCount',2,
+      'quotedCostCents',280000,'actualCostCents',145000,'partnerDueCents',10000,
+      'gangCutCents',30000,'yeromeResidualCents',115000);
+    v_snapshot := jsonb_set(v_snapshot,'{lines}',jsonb_build_array(
+      (v_snapshot->'lines'->0) || jsonb_build_object(
+        'quotedCostCents',280000,'actualCostCents',145000,
+        'partnerDueCents',10000,'yeromeResidualCents',115000),
+      jsonb_build_object('paycheckId',v_second,'payDate','2026-02-27',
+        'receiptCorrectionSequence',0,'sourceGrossCents',0,'sourceNetCents',0,
+        'quotedCostCents',0,'actualCostCents',0,'partnerDueCents',0,
+        'commissionCents',0,'gangCutCents',0,'yeromeResidualCents',0)));
+    begin
+      perform public.v2_post_settlement_batch(v_policy,v_snapshot,'missing-whole-job',v_actor);
+      raise exception 'Completely unscheduled job was accepted';
+    exception when others then
+      if position('Missing expected paid paycheck' in SQLERRM) <> 1
+         or position(v_other::text in SQLERRM) = 0 then raise; end if;
+    end;
+    raise exception 'Synthetic missing schedule checks passed';
+  exception when others then
+    if SQLERRM <> 'Synthetic missing schedule checks passed' then raise; end if;
+  end;
 end $$;
 
 do $$ declare first_agreement uuid; second_agreement uuid; begin
@@ -371,7 +511,7 @@ do $$ declare first_agreement uuid; second_agreement uuid; begin
   end;
 end $$;
 
-do $$ declare accrual uuid; referral uuid; begin
+do $$ declare accrual uuid; referral uuid; payment uuid; begin
   update public.jobs set start_date = '2026-01-01'
     where owner_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
   insert into public.v2_job_status_events(job_id,status,effective_from) values
@@ -397,15 +537,28 @@ do $$ declare accrual uuid; referral uuid; begin
   if (select amount_cents from public.v2_commission_accruals where id = accrual) <> 40000 then
     raise exception 'Fixed commission accrual wrong';
   end if;
-  perform public.v2_record_commission_payment(accrual,10000,'2026-03-05T12:00:00Z',
-    'external-payment-test','40000000-0000-0000-0000-000000000004');
+  payment := public.v2_record_commission_allocation(accrual,10000,'2026-03-05T12:00:00Z',
+    'external-payment-test',20000,'commission-payment-key',
+    '40000000-0000-0000-0000-000000000004');
+  if public.v2_record_commission_allocation(accrual,10000,'2026-03-05T12:00:00Z',
+      'external-payment-test',20000,'commission-payment-key',
+      '40000000-0000-0000-0000-000000000004') <> payment then
+    raise exception 'Commission replay failed'; end if;
+  begin
+    perform public.v2_record_commission_allocation(accrual,10000,'2026-03-05T12:00:00Z',
+      'external-payment-test',20000,'fresh-commission-key',
+      '40000000-0000-0000-0000-000000000004');
+    raise exception 'Duplicate external commission transfer accepted';
+  exception when unique_violation then null;
+  end;
   if (select amount_cents - (select sum(amount_cents) from public.v2_commission_payments
       where accrual_id = accrual) from public.v2_commission_accruals where id = accrual) <> 30000 then
     raise exception 'Commission owed wrong';
   end if;
   begin
-    perform public.v2_record_commission_payment(accrual,40000,'2026-03-06T12:00:00Z',
-      'excess','40000000-0000-0000-0000-000000000004');
+    perform public.v2_record_commission_allocation(accrual,40000,'2026-03-06T12:00:00Z',
+      'excess',40000,'excess-commission-key',
+      '40000000-0000-0000-0000-000000000004');
     raise exception 'Overpayment permitted';
   exception when others then
     if SQLERRM = 'Overpayment permitted' then raise; end if;
@@ -488,6 +641,8 @@ do $$ declare count_rows int; begin
      (select count(*) from public.job_compensation_terms) <> 0 or
      (select count(*) from public.v2_payrun_settlements) <> 0 or
      (select count(*) from public.v2_partner_payments) <> 0 or
+     (select count(*) from public.v2_external_transfers) <> 0 or
+     (select count(*) from public.v2_commission_payments) <> 0 or
      (select count(*) from public.v2_settlement_policy_approvals) <> 0 or
      (select count(*) from public.v2_paycheck_corrections) <> 0 then
     raise exception 'Owner A raw private row exposed';

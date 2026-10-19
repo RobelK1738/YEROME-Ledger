@@ -124,11 +124,12 @@ export default function AdminPeople() {
           <FormField label="Expected hours per week"><input required type="number" min="0" step="0.001" value={job.expectedWeeklyHours} onChange={(e) => setJob({ ...job, expectedWeeklyHours: e.target.value })} /></FormField></>
           : <FormField label="Annual salary ($)"><input required type="number" min="0" step="0.01" value={job.annualSalary} onChange={(e) => setJob({ ...job, annualSalary: e.target.value })} /></FormField>}
         <FormField label="Pay frequency"><select value={job.payFrequency} onChange={(e) => setJob({ ...job, payFrequency: e.target.value,
-          periodsPerYear: { weekly: '52', biweekly: '26', semimonthly: '24', monthly: '12' }[e.target.value] })}>
+          periodsPerYear: { weekly: '52', biweekly: '26', monthly: '12' }[e.target.value] })}>
+          {job.payFrequency === 'semimonthly' ? <option value="semimonthly" disabled>Twice monthly — calendar review required</option> : null}
           <option value="biweekly">Biweekly</option><option value="weekly">Weekly</option>
-          <option value="semimonthly">Twice monthly</option><option value="monthly">Monthly</option></select></FormField>
+          <option value="monthly">Monthly</option></select></FormField>
         <FormField label="Periods in this pay calendar"><input required type="number" min="1" max="53" value={job.periodsPerYear} onChange={(e) => setJob({ ...job, periodsPerYear: e.target.value })} /></FormField>
-        <FormField label="First payday"><input type="date" value={job.firstPayDate} onChange={(e) => setJob({ ...job, firstPayDate: e.target.value })} /></FormField>
+        <FormField label="First payday in employer calendar"><input required type="date" value={job.firstPayDate} onChange={(e) => setJob({ ...job, firstPayDate: e.target.value })} /></FormField>
         {!job.jobId ? <FormField label="Job start date"><input type="date" value={job.startDate} onChange={(e) => setJob({ ...job, startDate: e.target.value })} /></FormField> : null}
         <FormField label="Terms effective from"><input required type="date" value={job.effectiveFrom} onChange={(e) => setJob({ ...job, effectiveFrom: e.target.value })} /></FormField>
         <div className="row"><button className="btn btn--primary" disabled={busy}>Save job</button>

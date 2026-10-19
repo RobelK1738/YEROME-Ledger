@@ -50,6 +50,20 @@ unchanged; all changes are new incremental migrations.
   only correction-linked, formula-derived adjustments for new rows. It leaves
   prior adjustment rows intact and flags them for manual review. Rehearse both
   a fresh database and a sanitized copy with any historical adjustment rows.
+- The third-review migration derives expected dates from one full-month pay
+  term per job at posting time. Missing unscheduled dates or a whole job with
+  no checks block the month. Terms with no first payday or a semi-monthly
+  cadence remain unresolved; no historical dates are backfilled. New
+  semi-monthly terms are disabled until two anchors and employer date rules
+  exist. A holiday shift or no-pay period requires an audited exception design
+  and signed policy before posting.
+- New payment rows use an immutable external-transfer registry. Partner and
+  commission allocations share a normalized transfer reference and verified
+  total, with one allocation per obligation and stable request keys. Existing
+  payment rows remain unlinked; do not auto-merge them into transfers. Reconcile
+  each legacy reference against bank evidence in a sanitized copy before
+  production migration. Duplicate or coincidentally reused references block
+  automatically pending independent evidence review.
 - A paystub correction can change every check's allocation in its posted
   month. All further partner payments in that month stop until reconciliation.
   If a revised contractual due would be less than an amount already paid,
@@ -87,6 +101,11 @@ unchanged; all changes are new incremental migrations.
    reconciliation across two checks, overpaid-balance block, loss block,
    idempotent replay and owner-specific read-only history. Never
    enable this policy in a live project without founder and professional signoff.
+   Omit a biweekly date without creating a schedule row, then omit all dates
+   for another full-month job; both must block. Retry the same partner and
+   commission transfer POST after a reload and with a different request key;
+   each must retain one paid amount. Allocate one transfer to two obligations
+   and verify their sum never exceeds its bank total.
 8. Validate keyboard/mobile navigation, loading/empty/error states, and all
    three role experiences. Retain screenshots and response samples with
    synthetic data for review.
@@ -103,6 +122,8 @@ unchanged; all changes are new incremental migrations.
 - The current Vercel project shares Supabase variables between production and
   preview. Configure a branch-specific preview database and credentials before
   any hosted synthetic write. Do not inspect or log production secret values.
+- Obtain verified two-anchor semi-monthly calendars and holiday/no-pay rules
+  before restoring automatic schedules or allowing those months to settle.
 - Extend the basic dated start/end tax-year projection to account for actual
   hours, prior pay, pauses, changing terms and independent employers. Confirm
   official tax fixtures for all filing statuses
