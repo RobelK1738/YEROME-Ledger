@@ -1,11 +1,18 @@
 # YEROME v2 production rollout: verified baseline and gated sequence
 
-Status: **preparation only**. No production migration, Auth mutation, deployment,
-or cleanup has occurred. The founder's latest production-first instruction
+Status: **backup and local migration rehearsal complete; deployment approval
+pending**. No production migration, Auth mutation, deployment, merge, or cleanup
+has occurred. The founder's latest production-first instruction
 supersedes the older isolated-preview requirement, while retaining a verified
 backup, local restore rehearsal, and literal `DEPLOY V2` approval before any
 production migration or PR merge. Auth-user deletion separately requires an
 exact manifest and literal `EXECUTE CLEANUP` approval.
+
+The 2026-10-19 backup and rehearsal evidence, including the managed Vault
+restore limitation and the remaining configuration gates, is in
+`docs/production-rehearsal-2026-10-19.md`. The baseline below records the
+earlier preflight state; its former password blocker has been resolved through
+the owner's private `~/.pgpass` configuration.
 
 ## Read-only production baseline (2026-10-19)
 
@@ -137,8 +144,14 @@ separately approval-gated.
 
 ## Outstanding gates
 
-- Production database credential not available to this workspace; no full
-  backup or restore test yet.
+- Full PostgreSQL 17 logical backup and globals inventory are protected outside
+  Git and checksum-verified. The local restore recovered and matched every row
+  in 50 Auth/public/Storage tables; the 10 managed Vault archive entries could
+  not be replayed into stock Homebrew PostgreSQL because `supabase_vault` is
+  unavailable locally. Vault secrets and Storage objects were both empty.
+- All 12 v2 migrations passed against the restored local production data, but
+  a native Supabase-image restore remains unverified; the owner must review this
+  documented exception before approving production migration.
 - No hosted Auth-trigger, MFA, PostgREST, or three-role end-to-end evidence.
 - Protected Vercel env values and service-role key scope not yet verified;
   remove unused `ADMIN_PASSWORD` only in the authorized configuration phase.
