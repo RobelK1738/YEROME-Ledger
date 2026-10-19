@@ -99,6 +99,12 @@ production migration, Auth change, account deletion, PR merge, or deployment.
   retains those entries, and there were no Vault secret rows to lose in the
   application-data rehearsal. Supabase's own Auth runtime, encryption root,
   Storage binaries, and hosted settings need separate recovery validation.
+- The raw globals file stopped on a `GRANTED BY supabase_admin` membership
+  clause in the local cluster. For the local rehearsal only, grantor clauses
+  were removed from a private working copy before replaying the remaining
+  memberships. All 30 production role attributes and 24 memberships then
+  matched; the protected source globals file was not modified. A hosted
+  recovery runbook must account for Supabase-managed role grantors.
 - A Vercel code rollback would not reverse a database migration or Auth
   mutation. Use the maintenance sequence in the rollout plan and retain this
   backup until the approved rollout and post-deployment verification finish.
