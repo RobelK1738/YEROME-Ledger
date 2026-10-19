@@ -105,11 +105,35 @@ it does not prove the hosted Auth lifecycle, PostgREST or Vercel configuration.
   access closed, preserve backup and audit evidence, and use an approved forward
   repair; do not drop the identity guard to restore access casually.
 
+## Read-only sixth-review preflight (2026-10-19)
+
+- The exact project `uliolbtonhrmjwaeliyj` remains ACTIVE_HEALTHY. Its live
+  `auth.users`, `auth.sessions` and `auth.mfa_factors` contain the columns and
+  data types used by the proposed migration. No pre-existing custom trigger
+  was found on `auth.users`. This establishes schema shape only; it does not
+  prove GoTrue can perform login, password rotation, ban and TOTP writes after
+  the new trigger is installed.
+- The live database still lacks `private.admin_identity`,
+  `v2_authorize_session` and the v2 settlement policy table. The observed Auth
+  inventory remains three users; the designated Admin has zero verified MFA
+  factors. The two Owner identities link to 12 jobs, 48 job paychecks, 50 costs
+  and 12 cost allocations. Both candidate users have one Auth identity and no
+  active session; no Storage objects are owned by them. Exact IDs and the
+  full snapshot are in the local manifest outside this PR.
+- Vercel lists one `VITE_SUPABASE_URL`, publishable key, service-role key and
+  `ADMIN_EMAIL` variable each targeting **both production and preview**, with
+  no branch-specific scope. It also lists a legacy `ADMIN_PASSWORD` variable
+  in both targets, although current source does not read it. No sensitive
+  values were decrypted. Thus the exact Admin email value and matching
+  Supabase key/project scopes are not verified; the preview is not isolated.
+
 ## Outstanding hosted gates
 
 No isolated branch was created because the founder selected local work only.
-The live project has not received this migration or `ADMIN_EMAIL` setting.
-Hosted Auth schema compatibility, actual MFA enrollment/login, direct
-PostgREST denials, public signup/rate-limit/session configuration, exact
-dependent-record counts, backup readiness and Vercel preview isolation remain
-unverified. No Auth cleanup is authorized or complete.
+The live project has not received this migration. The protected `ADMIN_EMAIL`
+variable **exists** in Vercel, but its value remains unverified. Actual MFA
+enrollment/login, trigger compatibility with GoTrue, direct PostgREST denials,
+public signup/rate-limit/session configuration, backup readiness and Vercel
+preview isolation remain unverified. Remove the unused `ADMIN_PASSWORD` from
+Vercel and configure separate preview Supabase credentials only as part of an
+authorized configuration change. No Auth cleanup is authorized or complete.
