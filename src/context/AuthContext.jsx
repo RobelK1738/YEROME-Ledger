@@ -1,81 +1,92 @@
-// Global auth/session context. Determines the caller's role from the Supabase
-// JWT app_metadata (set server-side only), so route guards and RLS agree.
-
+// Browser route state follows the server's live session decision. JWT role
+// metadata alone never grants a portal, especially during Admin MFA enrollment.
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.js';
 import { ownerLogin as ownerLoginApi } from '../lib/data/adminApi.js';
 
 const AuthContext = createContext(null);
 
-function roleFromSession(session) {
-  return session?.user?.app_metadata?.role || null;
+async function sessionAuthorization(session) {
+  if (!session?.access_token) return { role: null, mfaRequired: false };
+  try {
+    const response = await fetch('/api/auth/session', {
+      headers: { Authorization: `Bearer ${session.access_token}` }, cache: 'no-store',
+    });
+    if (!response.ok) return { role: null, mfaRequired: false };
+    const result = await response.json();
+    if (result.mfaRequired === true) return { role: null, mfaRequired: true };
+    return { role: ['admin', 'owner'].includes(result.role) ? result.role : null, mfaRequired: false };
+  } catch { return { role: null, mfaRequired: false }; }
 }
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
+  const [authorization, setAuthorization] = useState({ role: null, mfaRequired: false });
   const [loading, setLoading] = useState(true);
+
+  const refreshAuthorization = useCallback(async (nextSession) => {
+    const result = await sessionAuthorization(nextSession);
+    setSession(nextSession ?? null);
+    setAuthorization(result);
+    setLoading(false);
+    return result;
+  }, []);
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setSession(data.session ?? null);
-      setLoading(false);
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (active) await refreshAuthorization(data.session);
+    }).catch(() => { if (active) { setAuthorization({ role: null, mfaRequired: false }); setLoading(false); } });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      // Schedule outside Supabase's auth callback to avoid its internal lock.
+      setTimeout(() => { if (active) void refreshAuthorization(nextSession); }, 0);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession ?? null);
-    });
-    return () => {
-      active = false;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
+    return () => { active = false; sub.subscription.unsubscribe(); };
+  }, [refreshAuthorization]);
 
   const adminLogin = useCallback(async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw new Error('Invalid email or password.');
-    const role = data.session?.user?.app_metadata?.role;
-    if (role !== 'admin') {
-      await supabase.auth.signOut();
-      throw new Error('This account is not authorized for YEROME access.');
+    if (error || !data.session) throw new Error('Invalid sign-in details.');
+    const result = await refreshAuthorization(data.session);
+    if (result.role !== 'admin' && !result.mfaRequired) {
+      await supabase.auth.signOut({ scope: 'local' });
+      await refreshAuthorization(null);
+      throw new Error('Invalid sign-in details.');
     }
-    return data.session;
-  }, []);
+    return result;
+  }, [refreshAuthorization]);
 
   const ownerLogin = useCallback(async (username, password) => {
     const { access_token, refresh_token } = await ownerLoginApi(username, password);
     const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
-    if (error) throw new Error('Could not establish session.');
-    return data.session;
-  }, []);
+    if (error || !data.session) throw new Error('Invalid sign-in details.');
+    const result = await refreshAuthorization(data.session);
+    if (result.role !== 'owner') {
+      await supabase.auth.signOut({ scope: 'local' });
+      await refreshAuthorization(null);
+      throw new Error('Invalid sign-in details.');
+    }
+    return result;
+  }, [refreshAuthorization]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-    setSession(null);
-  }, []);
+    await refreshAuthorization(null);
+  }, [refreshAuthorization]);
 
-  const value = useMemo(() => {
-    const role = roleFromSession(session);
-    return {
-      session,
-      user: session?.user ?? null,
-      role,
-      isAdmin: role === 'admin',
-      isOwner: role === 'owner',
-      isAuthenticated: Boolean(session),
-      loading,
-      configured: isSupabaseConfigured,
-      adminLogin,
-      ownerLogin,
-      signOut,
-    };
-  }, [session, loading, adminLogin, ownerLogin, signOut]);
+  const value = useMemo(() => ({
+    session, user: session?.user ?? null, role: authorization.role,
+    isAdmin: authorization.role === 'admin', isOwner: authorization.role === 'owner',
+    mfaRequired: authorization.mfaRequired,
+    isAuthenticated: Boolean(session && authorization.role), loading,
+    configured: isSupabaseConfigured, adminLogin, ownerLogin, signOut, refreshAuthorization,
+  }), [session, authorization, loading, adminLogin, ownerLogin, signOut, refreshAuthorization]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within an AuthProvider.');
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider.');
   return ctx;
 }

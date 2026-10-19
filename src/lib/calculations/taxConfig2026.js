@@ -2,10 +2,8 @@
 //
 // Source: IRS Rev. Proc. 2025-32 (tax year 2026 inflation adjustments, including
 // OBBBA amendments). This module is the single JS-side definition of the 2026
-// numbers and is kept identical to the values seeded into `tax_year_settings`
-// by supabase/migrations/0002_seed_tax_year_2026.sql. The DATABASE is the
-// runtime source of truth; this file is used by pure calculation tests and as a
-// typed reference. To add a future year, add a new config object + a new seed.
+// numbers. This versioned module is the v2 projection source of truth. The
+// legacy tax_year_settings rows are retained for history but not used by v2.
 
 // Bracket shape: { rate, min, max } where amounts are cents and `max: null`
 // means the top (open-ended) bracket.
@@ -60,6 +58,7 @@ const TEXAS_STATE_RATE = 0; // Texas has no personal income tax.
 function base(filingStatus, standardDeductionCents, brackets, addlMedicareThresholdCents) {
   return {
     year: 2026,
+    version: 'irs-2026-revproc-2025-32-v1',
     filing_status: filingStatus,
     standard_deduction_cents: standardDeductionCents,
     federal_brackets: brackets,
@@ -80,5 +79,7 @@ export const TAX_CONFIG_2026 = {
 };
 
 export function getTaxConfig2026(filingStatus) {
-  return TAX_CONFIG_2026[filingStatus] || TAX_CONFIG_2026.single;
+  const config = TAX_CONFIG_2026[filingStatus];
+  if (!config) throw new RangeError(`Unsupported 2026 filing status: ${filingStatus}`);
+  return config;
 }

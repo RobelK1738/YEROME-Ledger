@@ -1,96 +1,75 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
+import { useAsync } from './hooks/useAsync.js';
+import { getMyCommissions } from './lib/data/v2.js';
 import { Layout } from './components/Layout.jsx';
 import { RequireRole } from './components/RequireRole.jsx';
 import { Loading } from './components/ui/Loading.jsx';
-
 import LoginPage from './pages/LoginPage.jsx';
-
-import AdminDashboard from './pages/admin/AdminDashboard.jsx';
-import OwnersPage from './pages/admin/OwnersPage.jsx';
-import SetupOwnerPage from './pages/admin/SetupOwnerPage.jsx';
-import OwnerDetailPage from './pages/admin/OwnerDetailPage.jsx';
-import JobsPage from './pages/admin/JobsPage.jsx';
-import JobDetailPage from './pages/admin/JobDetailPage.jsx';
-import CostsPage from './pages/admin/CostsPage.jsx';
-import CommissionsPage from './pages/admin/CommissionsPage.jsx';
-import PaychecksPage from './pages/admin/PaychecksPage.jsx';
-import SettingsPage from './pages/admin/SettingsPage.jsx';
+import AdminMfaPage from './pages/AdminMfaPage.jsx';
+import AdminOverview from './pages/v2/AdminOverview.jsx';
+import AdminPeople from './pages/v2/AdminPeople.jsx';
+import AdminPayRuns from './pages/v2/AdminPayRuns.jsx';
+import AdminConfiguration from './pages/v2/AdminConfiguration.jsx';
 import AuditLogPage from './pages/admin/AuditLogPage.jsx';
+import { OwnerHome, OwnerJobs, OwnerPayments, OwnerCommissions } from './pages/v2/OwnerPages.jsx';
 
-import OwnerDashboard from './pages/owner/OwnerDashboard.jsx';
-import OwnerJobsPage from './pages/owner/OwnerJobsPage.jsx';
-import OwnerJobDetailPage from './pages/owner/OwnerJobDetailPage.jsx';
-import OwnerCommissionsPage from './pages/owner/OwnerCommissionsPage.jsx';
-import OwnerPaychecksPage from './pages/owner/OwnerPaychecksPage.jsx';
-
-// `primary` items become the phone bottom-bar tabs; the rest live under "More".
 const ADMIN_NAV = [
-  { to: '/admin', label: 'Dashboard', shortLabel: 'Home', icon: '▚', end: true, primary: true },
-  { to: '/admin/owners', label: 'Owners', icon: '👥', primary: true },
-  { to: '/admin/jobs', label: 'Jobs', icon: '💼', primary: true },
-  { to: '/admin/costs', label: 'Costs', icon: '🧾' },
-  { to: '/admin/commissions', label: 'Commissions', icon: '🤝' },
-  { to: '/admin/paychecks', label: 'Paychecks', shortLabel: 'Pay', icon: '📆', primary: true },
-  { to: '/admin/settings', label: 'Settings', icon: '⚙' },
-  { to: '/admin/audit', label: 'Audit Log', icon: '📝' },
+  { to: '/admin', label: 'Overview', icon: '▚', end: true, primary: true },
+  { to: '/admin/people', label: 'US Persons', shortLabel: 'People', icon: '👥', primary: true },
+  { to: '/admin/pay-runs', label: 'Pay Runs', shortLabel: 'Pay', icon: '📆', primary: true },
+  { to: '/admin/config', label: 'Configuration', icon: '⚙' },
+  { to: '/admin/audit', label: 'Audit', icon: '📝' },
+];
+const OWNER_NAV = [
+  { to: '/owner', label: 'Home', icon: '▚', end: true, primary: true },
+  { to: '/owner/jobs', label: 'My Jobs', shortLabel: 'Jobs', icon: '💼', primary: true },
+  { to: '/owner/payments', label: 'Payments', shortLabel: 'Pay', icon: '📆', primary: true },
 ];
 
-const OWNER_NAV = [
-  { to: '/owner', label: 'Home', shortLabel: 'Home', icon: '▚', end: true, primary: true },
-  { to: '/owner/jobs', label: 'My Jobs', shortLabel: 'Jobs', icon: '💼', primary: true },
-  { to: '/owner/paychecks', label: 'Paychecks', shortLabel: 'Pay', icon: '📆', primary: true },
-  { to: '/owner/commissions', label: 'Referrals', shortLabel: 'Referrals', icon: '🤝' },
-];
+function OwnerShell() {
+  const { data } = useAsync(getMyCommissions, []);
+  const hasReferrals = Boolean(data?.referrals?.length);
+  const nav = hasReferrals ? [...OWNER_NAV,
+    { to: '/owner/commissions', label: 'Commissions', icon: '🤝', primary: true }] : OWNER_NAV;
+  return <Layout navItems={nav} portalLabel="US Person" />;
+}
 
 function HomeRedirect() {
-  const { loading, isAuthenticated, role } = useAuth();
+  const { loading, isAuthenticated, role, mfaRequired } = useAuth();
   if (loading) return <Loading full />;
+  if (mfaRequired) return <Navigate to="/admin/mfa" replace />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <Navigate to={role === 'admin' ? '/admin' : '/owner'} replace />;
 }
 
 export default function App() {
-  return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-
-      <Route
-        element={
-          <RequireRole role="admin">
-            <Layout navItems={ADMIN_NAV} portalLabel="YEROME Portal" />
-          </RequireRole>
-        }
-      >
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/owners" element={<OwnersPage />} />
-        <Route path="/admin/setup" element={<SetupOwnerPage />} />
-        <Route path="/admin/owners/:ownerId" element={<OwnerDetailPage />} />
-        <Route path="/admin/jobs" element={<JobsPage />} />
-        <Route path="/admin/jobs/:jobId" element={<JobDetailPage />} />
-        <Route path="/admin/costs" element={<CostsPage />} />
-        <Route path="/admin/commissions" element={<CommissionsPage />} />
-        <Route path="/admin/paychecks" element={<PaychecksPage />} />
-        <Route path="/admin/settings" element={<SettingsPage />} />
-        <Route path="/admin/audit" element={<AuditLogPage />} />
-      </Route>
-
-      <Route
-        element={
-          <RequireRole role="owner">
-            <Layout navItems={OWNER_NAV} portalLabel="Owner Portal" />
-          </RequireRole>
-        }
-      >
-        <Route path="/owner" element={<OwnerDashboard />} />
-        <Route path="/owner/jobs" element={<OwnerJobsPage />} />
-        <Route path="/owner/jobs/:jobId" element={<OwnerJobDetailPage />} />
-        <Route path="/owner/commissions" element={<OwnerCommissionsPage />} />
-        <Route path="/owner/paychecks" element={<OwnerPaychecksPage />} />
-      </Route>
-
-      <Route path="/" element={<HomeRedirect />} />
-      <Route path="*" element={<HomeRedirect />} />
-    </Routes>
-  );
+  return <Routes>
+    <Route path="/login" element={<LoginPage />} />
+    <Route path="/admin/mfa" element={<AdminMfaPage />} />
+    <Route element={<RequireRole role="admin"><Layout navItems={ADMIN_NAV} portalLabel="YEROME Admin" /></RequireRole>}>
+      <Route path="/admin" element={<AdminOverview />} />
+      <Route path="/admin/people" element={<AdminPeople />} />
+      <Route path="/admin/pay-runs" element={<AdminPayRuns />} />
+      <Route path="/admin/config" element={<AdminConfiguration />} />
+      <Route path="/admin/audit" element={<AuditLogPage />} />
+      <Route path="/admin/owners/*" element={<Navigate to="/admin/people" replace />} />
+      <Route path="/admin/jobs/*" element={<Navigate to="/admin/people" replace />} />
+      <Route path="/admin/paychecks" element={<Navigate to="/admin/pay-runs" replace />} />
+      <Route path="/admin/costs" element={<Navigate to="/admin/config" replace />} />
+      <Route path="/admin/commissions" element={<Navigate to="/admin/people" replace />} />
+      <Route path="/admin/settings" element={<Navigate to="/admin/config" replace />} />
+      <Route path="/admin/setup" element={<Navigate to="/admin/people" replace />} />
+    </Route>
+    <Route element={<RequireRole role="owner"><OwnerShell /></RequireRole>}>
+      <Route path="/owner" element={<OwnerHome />} />
+      <Route path="/owner/jobs" element={<OwnerJobs />} />
+      <Route path="/owner/payments" element={<OwnerPayments />} />
+      <Route path="/owner/commissions" element={<OwnerCommissions />} />
+      <Route path="/owner/jobs/:jobId" element={<Navigate to="/owner/jobs" replace />} />
+      <Route path="/owner/paychecks" element={<Navigate to="/owner/payments" replace />} />
+    </Route>
+    <Route path="/" element={<HomeRedirect />} />
+    <Route path="*" element={<HomeRedirect />} />
+  </Routes>;
 }

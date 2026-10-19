@@ -10,9 +10,7 @@
     "preview": "vite preview",
     "test": "node --test test/*.test.js",
     "bootstrap:admin": "node scripts/bootstrap-admin.mjs",
-    "seed:dev": "node scripts/seed-dev.mjs",
-    "local:server": "node --experimental-sqlite server/localBackend.mjs",
-    "local": "./runAppLocally.sh"
+    "test:security": "bash test/run-security-v2.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
