@@ -15,7 +15,8 @@ unchanged; all changes are new incremental migrations.
 2. The security script creates a disposable, local Unix-socket database,
    applies every migration, exercises separate simulated Admin/US Person
    identities, rehearses a synthetic approved settlement, partial payment,
-   corrected paystub, adjustment and replay, then removes that database. It does **not** prove hosted Auth,
+   corrected paystub, typed adjustment, tampered per-check allocation, blocked
+   overpayment and replay, then removes that database. It does **not** prove hosted Auth,
    PostgREST or Vercel behavior.
 3. The optional `supabase/seed.sql` is disposable demo data for a **fresh local
    database only**. It creates no working Auth accounts, and its agreements
@@ -44,6 +45,16 @@ unchanged; all changes are new incremental migrations.
   unknown prior pauses or referral eligibility are fabricated. Reconcile old
   activity with source documents before any historical posting. The settlement
   approval table is empty after migration, so real posting stays disabled.
+- The second-review migration verifies each posted check's deterministic
+  weighted cents in SQL, revokes the old free-form adjustment RPC, and admits
+  only correction-linked, formula-derived adjustments for new rows. It leaves
+  prior adjustment rows intact and flags them for manual review. Rehearse both
+  a fresh database and a sanitized copy with any historical adjustment rows.
+- A paystub correction can change every check's allocation in its posted
+  month. All further partner payments in that month stop until reconciliation.
+  If a revised contractual due would be less than an amount already paid,
+  reconciliation stops. Do not invent a negative payment or silently offset
+  another month; record a signed credit or recovery decision first.
 - If a pre-production application test fails, stop serving the preview and
   restore its pre-migration database snapshot. Do not manually reverse only
   part of the interdependent v2 migrations. For production, write and test a
@@ -72,8 +83,9 @@ unchanged; all changes are new incremental migrations.
    overpayment and a historical mutation; both must fail.
 7. In the isolated preview only, explicitly enable a **synthetic** settlement
    policy after documenting the proposed receipt basis. Test a completed month,
-   missing and late paystub, correction, partial partner payment, adjustment,
-   loss block, idempotent replay and owner-specific read-only history. Never
+   missing and late paystub, correction, partial partner payment, typed
+   reconciliation across two checks, overpaid-balance block, loss block,
+   idempotent replay and owner-specific read-only history. Never
    enable this policy in a live project without founder and professional signoff.
 8. Validate keyboard/mobile navigation, loading/empty/error states, and all
    three role experiences. Retain screenshots and response samples with
@@ -88,6 +100,9 @@ unchanged; all changes are new incremental migrations.
 - Rehearse the migration and three-role Auth/PostgREST/browser flow on a
   separate hosted preview with distinct real test identities. Disposable local
   PostgreSQL role tests cannot prove hosted Supabase behavior.
+- The current Vercel project shares Supabase variables between production and
+  preview. Configure a branch-specific preview database and credentials before
+  any hosted synthetic write. Do not inspect or log production secret values.
 - Extend the basic dated start/end tax-year projection to account for actual
   hours, prior pay, pauses, changing terms and independent employers. Confirm
   official tax fixtures for all filing statuses

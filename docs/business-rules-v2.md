@@ -8,8 +8,10 @@ fixtures, not independent confirmation of its current cells.
 ## Parties and scope
 
 An Admin manages US Persons and jobs. Each US Person sees only their own
-statement and dated employer paychecks. A US Person with an Admin-recorded,
-active, fixed-rate referral may also see an allowlisted commission statement.
+statement and dated employer paychecks. A US Person with an Admin-recorded
+fixed-rate referral may also see an allowlisted commission statement, including
+accrued, paid and owed history after a relationship ends. Only a currently
+eligible referral contributes to the forward monthly commission estimate.
 The identity is derived from a verified Auth user, never a request-supplied
 person ID. Miki's own jobs use the direct deal. A referred person's jobs use
 the referral deal and generate a separate Miki commission. The fourth workbook
@@ -93,17 +95,23 @@ original received check remains immutable.
 New job pay terms, status events, referral status events and agreement terms
 have effective dates and immutable prior versions. Previously settled paycheck
 snapshots are protected against update and deletion. A later paystub correction
-flags a posted settlement for an explicit balanced adjustment before more
-partner payment can be recorded. Legacy rows
+flags the whole posted month for a formula-derived reconciliation. Every dated
+line is reweighted to the corrected receipt nets; partner, commission, Gang,
+quoted charge, actual cost and YEROME balances keep original, change and
+current values. Further partner payment for any check in that month is blocked
+until correction reconciliation. Free-form reallocation is unavailable. A
+correction that would put recorded payment above revised partner due is blocked
+pending a signed credit or recovery rule. Legacy rows
 are **not** automatically classified as a verified direct/referral agreement,
 and old paid statuses are not silently converted to v2 settlements.
 
 The monthly partner projection is a **steady-state run rate**, using current
 active jobs. The separate tax-year liability estimate prorates current terms
-over dated employment when one term version applies. When pay terms change
-within 2026, the annual tax and reconciliation gap are marked unavailable until
-dated wages are reviewed; a current run-rate share may still be shown. Actual
-hours, historical paystubs and job pauses need a fuller dated forecast. The
+over dated employment when one term version applies. When pay terms change or
+a job pauses within 2026, the annual tax and reconciliation gap are marked
+unavailable until dated wages are reviewed; a current run-rate share may still
+be shown. Earlier received wages and withholding remain visible through a pause
+or resume. Actual hours and historical paystubs need a fuller dated forecast. The
 commission posting function uses status events at the earned month and accepts
 only completed full calendar months with unambiguous full-month active jobs and
 a verified agreement/referral. It does not decide partial-month entitlements.
@@ -122,12 +130,12 @@ receipt, an unverified contract or a negative quoted net blocks posting.
 
 **This cash basis and allocation are proposals, not approved contractual or
 tax facts.** No settlement-policy approval is seeded. The Admin API and SQL
-RPC refuse posting, partner payment and adjustment without an enabled,
+RPC refuse posting, partner payment and correction reconciliation without an enabled,
 documented approval for that person. A synthetic approval exists only inside
 the disposable database test. Once approved, the ledger stores the agreement
 version, receipt correction sequence, calculation version, idempotency key,
-partner due, recorded payments, outstanding amount and immutable balanced
-adjustments. It does not initiate a transfer.
+partner due, recorded payments, outstanding amount and immutable formula-derived
+correction adjustments. It does not initiate a transfer.
 
 ## Decision register
 
@@ -141,6 +149,7 @@ adjustments. It does not initiate a transfer.
 | Charge and commission disclosure | Use agreed commercial fee wording | Counsel review of signed agreements |
 | Employer W-2 deposits versus partner distributions | Keep separate, no automatic movement | Accounting/legal signoff on structure |
 | Dated settlement receipt basis and allocation | Gate all real posting; proposed closed-month net-deposit basis only in tests | Approve or replace the basis, charge allocation, payment timing and signed policy reference |
+| Revised share below an already recorded payment | Block formula reconciliation and further payment; surface the unresolved amount | Approve documented credit or recovery process before any such correction is settled |
 | State tax and future tax years | Texas 2026 only | Provide reviewed versioned parameters |
 | Historical three-way and old referral rows | Do not auto-map or pay | Review identity, signed terms and migration evidence |
 

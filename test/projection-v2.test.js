@@ -128,14 +128,49 @@ test('changed terms suppress annual tax and gap rather than projecting old wages
   assert.ok(dto.myShareMonthlyCents > 0);
 });
 
+test('a pause or later resume never erases earlier received tax-year wages', () => {
+  const received = { id: 'earned-before-pause', job_id: 'one', pay_date: '2026-09-30',
+    status: 'paid', actual_gross_cents: 150000, actual_net_received_cents: 120000,
+    federal_withheld_cents: 30000, social_security_withheld_cents: 0,
+    medicare_withheld_cents: 0, additional_medicare_withheld_cents: 0,
+    state_withheld_cents: 0 };
+  const history = [
+    { status: 'active', effective_from: '2026-01-01' },
+    { status: 'paused', effective_from: '2026-10-18' },
+  ];
+  for (const [status, events] of [
+    ['paused', history],
+    ['active', [...history, { status: 'active', effective_from: '2026-11-01' }]],
+    ['active', [
+      { status: 'active', effective_from: '2025-01-01' },
+      { status: 'paused', effective_from: '2025-12-01' },
+      { status: 'active', effective_from: '2026-02-01' },
+    ]],
+  ]) {
+    const projected = projectPerson({ owner, taxYear: 2026,
+      jobs: [{ ...hourly('one', 1850, 35), status, statusHistory: events }],
+      paychecks: [received], asOf: '2026-11-02' });
+    const dto = ownerStatementDto(projected);
+    assert.equal(dto.annualTaxNeedsReview, true);
+    assert.equal(dto.taxYearProjectedWagesCents, null);
+    assert.equal(dto.annualTaxLiabilityEstimateCents, null);
+    assert.equal(dto.taxReconciliation.actualWithholdingCents, 30000);
+    assert.equal(dto.taxReconciliation.actualNetReceivedCents, 120000);
+    assert.equal(dto.taxReconciliation.projectedGapCents, null);
+  }
+});
+
 test('partner settlement DTO exposes only own distribution facts', () => {
   const projected = projectPerson({ owner, jobs: [hourly('one',1850,35)], taxYear: 2026,
     partnerSettlements: [{ paycheckId: 'check-a', payDate: '2026-02-13',
+      partnerDueOriginalCents: 58000, partnerDueChangesCents: -500,
       partnerDueCents: 57500, paidCents: 10000, owedCents: 47500,
       actualCostCents: 105000, gangCutCents: 30000, yeromeResidualCents: 107500 }],
   });
   const dto = ownerStatementDto(projected);
   assert.equal(dto.partnerSettlements[0].owedCents, 47500);
+  assert.equal(dto.partnerSettlements[0].partnerDueOriginalCents, 58000);
+  assert.equal(dto.partnerSettlements[0].partnerDueChangesCents, -500);
   assert.equal('actualCostCents' in dto.partnerSettlements[0], false);
   assert.equal('gangCutCents' in dto.partnerSettlements[0], false);
   assert.equal('yeromeResidualCents' in dto.partnerSettlements[0], false);

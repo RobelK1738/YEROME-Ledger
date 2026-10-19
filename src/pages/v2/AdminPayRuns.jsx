@@ -30,8 +30,6 @@ export default function AdminPayRuns() {
   const [settlementQuery, setSettlementQuery] = useState({ ownerId: '', month: '' });
   const [settlementData, setSettlementData] = useState(null);
   const [payment, setPayment] = useState({ settlementId: '', amount: '', paidAt: '', reference: '', key: crypto.randomUUID() });
-  const [adjustment, setAdjustment] = useState({ settlementId: '', correctionId: '', reason: '',
-    afterTax: '0', actualCost: '0', partnerDue: '0', commission: '0', gang: '0', yerome: '0', key: crypto.randomUUID() });
   if (loading) return <Loading full label="Loading pay runs…" />;
   if (error) return <ErrorState error={error} onRetry={refresh} />;
   const people = data?.people || [];
@@ -141,11 +139,29 @@ export default function AdminPayRuns() {
           }, 'Contractual month posted with immutable receipt snapshots.')}>Post reviewed month</button>
       </> : null}
       {settlementData?.settlements?.length ? <ul className="v2-list">{settlementData.settlements.map((row) =>
-        <li key={row.settlementId}><strong>Paycheck dated {row.payDate}</strong> · source net {formatCurrency(row.sourceNetCents)}
-          <p>Partner due {formatCurrency(row.partnerDueCents)} · paid {formatCurrency(row.paidCents)} · owed {formatCurrency(row.owedCents)}</p>
-          <p>YEROME actual cost {formatCurrency(row.actualCostCents)} · commission {formatCurrency(row.commissionCents)} · Gang {formatCurrency(row.gangCutCents)} · residual {formatCurrency(row.yeromeResidualCents)}</p>
+        <li key={row.settlementId}><strong>Paycheck dated {row.payDate}</strong>
+          <p>Current partner due {formatCurrency(row.partnerDueCents)} · paid {formatCurrency(row.paidCents)} · owed {formatCurrency(row.owedCents)}</p>
+          {row.overpaidCents ? <p>Recorded amount exceeds revised due by {formatCurrency(row.overpaidCents)}. Credit or recovery review required.</p> : null}
+          <details><summary>Original, changes and current totals</summary>
+            {[
+              ['Receipt net', 'sourceNetCents'], ['Agreed charges', 'quotedCostCents'],
+              ['YEROME actual cost', 'actualCostCents'], ['Partner due', 'partnerDueCents'],
+              ['Miki commission', 'commissionCents'], ['Gang', 'gangCutCents'],
+              ['YEROME residual', 'yeromeResidualCents'],
+            ].map(([label, key]) => <p key={key}>{label}: original {formatCurrency(row.original[key])} + changes {formatCurrency(row.changes[key])} = current {formatCurrency(row[key])}</p>)}
+          </details>
           <button className="btn btn--ghost btn--sm" onClick={() => setPayment({ ...payment, settlementId: row.settlementId })}>Record partial/full payment</button>
-          <button className="btn btn--ghost btn--sm" onClick={() => setAdjustment({ ...adjustment, settlementId: row.settlementId })}>Record adjustment</button>
+          {row.pendingCorrections?.map((correction) => <button key={correction.id}
+            className="btn btn--ghost btn--sm" disabled={busy}
+            onClick={() => submit(async () => {
+              await postAdminSettlement({ action: 'reconcile', ownerId: settlementQuery.ownerId,
+                calendarMonth: `${settlementQuery.month}-01`, settlementId: row.settlementId,
+                receiptCorrectionId: correction.id,
+                idempotencyKey: `receipt-reconcile-${correction.id}` });
+              await loadSettlements();
+            }, 'Receipt correction reconciled across the posted month.')}>
+            Reconcile receipt correction {correction.sequence}</button>)}
+          {row.pendingCorrections?.length ? <p className="muted">Corrections reconcile in order. If revised due is below a recorded payment, posting stops for a signed credit or recovery decision.</p> : null}
         </li>)}</ul> : null}
       {payment.settlementId && settlementData ? <form className="v2-form" onSubmit={(event) => {
         event.preventDefault(); submit(async () => {
@@ -165,33 +181,6 @@ export default function AdminPayRuns() {
           onChange={(event) => setPayment({ ...payment, reference: event.target.value })} /></label>
         <button className="btn btn--primary" disabled={busy}>Record payment</button>
       </form> : null}
-      {adjustment.settlementId && settlementData ? <form className="v2-form" onSubmit={(event) => {
-        event.preventDefault(); submit(async () => {
-          await postAdminSettlement({ action: 'adjust', ownerId: settlementQuery.ownerId,
-            calendarMonth: `${settlementQuery.month}-01`, settlementId: adjustment.settlementId,
-            receiptCorrectionId: adjustment.correctionId || null, reason: adjustment.reason,
-            afterTaxDeltaCents: dollarsToCents(adjustment.afterTax),
-            actualCostDeltaCents: dollarsToCents(adjustment.actualCost),
-            partnerDueDeltaCents: dollarsToCents(adjustment.partnerDue),
-            commissionDeltaCents: dollarsToCents(adjustment.commission),
-            gangDeltaCents: dollarsToCents(adjustment.gang),
-            yeromeDeltaCents: dollarsToCents(adjustment.yerome),
-            idempotencyKey: adjustment.key });
-          await loadSettlements();
-          setAdjustment({ settlementId: '', correctionId: '', reason: '', afterTax: '0',
-            actualCost: '0', partnerDue: '0', commission: '0', gang: '0', yerome: '0', key: crypto.randomUUID() });
-        }, 'Balanced adjustment recorded.');
-      }}>
-        <p>Signed cent changes must reconcile. A receipt net change requires its correction ID.</p>
-        <label className="v2-field"><span>Correction ID, if cash changed</span><input value={adjustment.correctionId}
-          onChange={(event) => setAdjustment({ ...adjustment, correctionId: event.target.value })} /></label>
-        {['afterTax','actualCost','partnerDue','commission','gang','yerome'].map((field) =>
-          <label className="v2-field" key={field}><span>{field} change ($)</span><input required type="number" step="0.01"
-            value={adjustment[field]} onChange={(event) => setAdjustment({ ...adjustment, [field]: event.target.value })} /></label>)}
-        <label className="v2-field"><span>Audited reason</span><input required value={adjustment.reason}
-          onChange={(event) => setAdjustment({ ...adjustment, reason: event.target.value })} /></label>
-        <button className="btn btn--primary" disabled={busy}>Record adjustment</button>
-      </form> : null}
     </Card>
     <Card title="Miki referral commissions" subtitle="Post only completed full calendar months; record an external payment after it happens.">
       {commissionError ? <ErrorState error={commissionError} onRetry={refreshCommissions} /> : null}
@@ -201,7 +190,7 @@ export default function AdminPayRuns() {
         <label className="v2-field"><span>Verified referral</span><select required value={commissionReferralId}
           onChange={(event) => setCommissionReferralId(event.target.value)}><option value="">Choose referral</option>
           {(commissionData?.referrals || []).filter((row) => !row.needsContractReview).map((row) =>
-            <option key={row.id} value={row.id}>{row.referrerName} → {row.referredName}</option>)}</select></label>
+            <option key={row.id} value={row.id}>{row.referrerName} → {row.referredName}{row.relationshipCurrent ? '' : ' · historical or scheduled'}</option>)}</select></label>
         <label className="v2-field"><span>Completed calendar month</span><input required type="month" value={commissionMonth}
           onChange={(event) => setCommissionMonth(event.target.value)} /></label>
         <button className="btn btn--secondary" disabled={busy}>Post full-month accrual</button>

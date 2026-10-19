@@ -1,5 +1,6 @@
 import { adminClient, getEnv } from './supabaseAdmin.js';
 import { projectPerson } from '../../src/lib/finance-v2/projection.js';
+import { postedSettlementView } from '../../src/lib/finance-v2/posted-settlement.js';
 
 function bearer(req) {
   const value = req.headers.authorization || req.headers.Authorization || '';
@@ -123,35 +124,42 @@ export async function loadPersonProjection(db, ownerId, asOf = new Date().toISOS
   for (const event of statusEvents) if (!statusByJob.has(event.job_id))
     statusByJob.set(event.job_id, event.status);
   const settlementRows = await allPages(() => db.from('v2_payrun_settlements')
-    .select('id,job_paycheck_id,pay_date,partner_due_cents,receipt_correction_sequence')
+    .select('id,job_paycheck_id,pay_date,source_net_cents,quoted_cost_cents,actual_cost_cents,partner_due_cents,commission_cents,gang_cut_cents,yerome_residual_cents,receipt_correction_sequence')
     .eq('owner_id', ownerId).not('batch_id', 'is', null)
     .order('pay_date', { ascending: false }).order('id'));
   const payments = [];
   const adjustments = [];
+  const reconciliations = [];
   for (let offset = 0; offset < settlementRows.length; offset += 100) {
     const settlementIds = settlementRows.slice(offset, offset + 100).map((row) => row.id);
-    const [pagePayments, pageAdjustments] = await Promise.all([
+    const [pagePayments, pageAdjustments, pageReconciliations] = await Promise.all([
       allPages(() => db.from('v2_partner_payments')
         .select('settlement_id,amount_cents,paid_at').in('settlement_id', settlementIds)
         .order('paid_at')),
       allPages(() => db.from('v2_settlement_adjustments')
-        .select('settlement_id,partner_due_delta_cents,receipt_correction_id')
+        .select('settlement_id,after_tax_delta_cents,quoted_cost_delta_cents,actual_cost_delta_cents,partner_due_delta_cents,commission_delta_cents,gang_delta_cents,yerome_delta_cents,receipt_correction_id')
         .in('settlement_id', settlementIds).order('created_at')),
+      allPages(() => db.from('v2_settlement_reconciliations')
+        .select('corrected_settlement_id,correction_id').in('corrected_settlement_id', settlementIds)
+        .order('created_at')),
     ]);
     payments.push(...pagePayments);
     adjustments.push(...pageAdjustments);
+    reconciliations.push(...pageReconciliations);
   }
   const partnerSettlements = settlementRows.map((row) => {
     const rowPayments = payments.filter((payment) => payment.settlement_id === row.id);
     const rowAdjustments = adjustments.filter((adjustment) => adjustment.settlement_id === row.id);
-    const due = Number(row.partner_due_cents) + rowAdjustments
-      .reduce((sum, adjustment) => sum + Number(adjustment.partner_due_delta_cents), 0);
-    const paid = rowPayments.reduce((sum, payment) => sum + Number(payment.amount_cents), 0);
-    const coveredCorrections = rowAdjustments.filter((adjustment) => adjustment.receipt_correction_id).length;
+    const ledger = postedSettlementView(row, rowAdjustments, rowPayments);
+    const coveredCorrections = reconciliations.filter((item) =>
+      item.corrected_settlement_id === row.id).length;
     const check = paychecks.find((item) => item.id === row.job_paycheck_id);
     return { paycheckId: row.job_paycheck_id, payDate: row.pay_date,
-      partnerDueCents: due, paidCents: paid, owedCents: due - paid,
-      lastPaidAt: rowPayments.map((payment) => payment.paid_at).sort().at(-1) || null,
+      partnerDueOriginalCents: ledger.original.partnerDueCents,
+      partnerDueChangesCents: ledger.changes.partnerDueCents,
+      partnerDueCents: ledger.current.partnerDueCents,
+      paidCents: ledger.paidCents, owedCents: ledger.owedCents,
+      overpaidCents: ledger.overpaidCents, lastPaidAt: ledger.lastPaidAt,
       needsAdjustment: Boolean(check?.corrected &&
         (Number(row.receipt_correction_sequence) + coveredCorrections) <
         (check.receipt_correction_sequence || 0)) };
@@ -162,7 +170,8 @@ export async function loadPersonProjection(db, ownerId, asOf = new Date().toISOS
       agreement_verified_at: agreements[0]?.verified_at || null },
     jobs: jobs.map((job) => ({ ...job, status: statusByJob.get(job.id) || job.status,
       terms: termByJob.get(job.id) || null,
-      termsHistory: terms.filter((term) => term.job_id === job.id) })),
+      termsHistory: terms.filter((term) => term.job_id === job.id),
+      statusHistory: statusEvents.filter((event) => event.job_id === job.id) })),
     apartment: apartments[0] || null,
     hasVerifiedReferral: referrals.length > 0,
     agreementEffectiveFrom: agreements[0]?.effective_from || null,

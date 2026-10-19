@@ -73,9 +73,23 @@ export function projectPerson({ owner, jobs = [], apartment = null, paychecks = 
   const annualGrossCents = activeJobs.reduce((sum, job) => sum + (job.annualGrossCents || 0), 0);
   // An annual estimate built from today's terms would rewrite earlier months
   // after a raise. Until a dated wage ledger covers every interval, suppress it.
-  const annualTaxNeedsReview = jobs.some((job) => (job.termsHistory || [])
-    .filter((term) => term.effective_from <= `${taxYear}-12-31` &&
-      (!term.effective_to || term.effective_to >= `${taxYear}-01-01`)).length > 1);
+  const annualTaxNeedsReview = jobs.some((job) => {
+    const changedTerms = (job.termsHistory || [])
+      .filter((term) => term.effective_from <= `${taxYear}-12-31` &&
+        (!term.effective_to || term.effective_to >= `${taxYear}-01-01`)).length > 1;
+    const history = job.statusHistory || [];
+    const pausedDuringYear = history.some((event) =>
+      event.status === 'paused' && event.effective_from >= `${taxYear}-01-01` &&
+      event.effective_from <= `${taxYear}-12-31`);
+    const statusAtYearStart = history.filter((event) =>
+      event.effective_from <= `${taxYear}-01-01`)
+      .sort((a, b) => a.effective_from.localeCompare(b.effective_from) ||
+        Number(a.event_order || 0) - Number(b.event_order || 0)).at(-1)?.status;
+    // A current pause may have older, unverified history; never turn received
+    // wages into a zero annual liability just because the run rate is now zero.
+    return changedTerms || pausedDuringYear || statusAtYearStart === 'paused' ||
+      job.status === 'paused';
+  });
   const taxYearWagesCents = annualTaxNeedsReview ? null :
     myJobs.reduce((sum, job) => sum + taxYearWagesForJob(job, taxYear), 0);
   const taxConfig = getTaxConfig2026(owner.filing_status);
@@ -163,8 +177,11 @@ export function ownerStatementDto(projected) {
     myPaychecks: projected.myPaychecks,
     partnerSettlements: projected.partnerSettlements.map((row) => ({
       paycheckId: row.paycheckId, payDate: row.payDate,
+      partnerDueOriginalCents: row.partnerDueOriginalCents,
+      partnerDueChangesCents: row.partnerDueChangesCents,
       partnerDueCents: row.partnerDueCents, paidCents: row.paidCents,
-      owedCents: row.owedCents, lastPaidAt: row.lastPaidAt || null,
+      owedCents: row.owedCents, overpaidCents: row.overpaidCents || 0,
+      lastPaidAt: row.lastPaidAt || null,
       needsAdjustment: row.needsAdjustment === true,
     })),
     nextPayDate: projected.nextPayDate,
@@ -181,7 +198,7 @@ export function ownerStatementDto(projected) {
     requiresPayoutDecision: s?.needsPayoutPolicy ?? false,
     taxReconciliation: projected.stateSupported ? projected.reconciliation : null,
     estimateLimitations: projected.stateSupported
-      ? '2026 Texas planning estimates: monthly share uses current full-year run rate. Annual liability is unavailable after a pay-term change until dated wages are reviewed. Actual hours, withholding, credits and other income may differ.'
+      ? '2026 Texas planning estimates: monthly share uses current full-year run rate. Annual liability is unavailable after a pay-term change or job pause until dated wages are reviewed. Actual hours, withholding, credits and other income may differ.'
       : 'State tax assumptions are not configured for this US Person; no partner share is projected.',
   };
 }

@@ -50,6 +50,12 @@ do $$ begin
      or has_function_privilege('authenticated', 'public.v2_record_partner_payment(uuid,bigint,timestamptz,text,text,uuid)', 'EXECUTE') then
     raise exception 'Owner role can post settlement or payment';
   end if;
+  if has_function_privilege('service_role',
+      'public.v2_record_settlement_adjustment(uuid,bigint,bigint,bigint,bigint,bigint,bigint,uuid,text,text,uuid)',
+      'EXECUTE') or has_function_privilege('authenticated',
+      'public.v2_reconcile_settlement_correction(uuid,uuid,text,uuid)', 'EXECUTE') then
+    raise exception 'Arbitrary settlement reallocations or owner corrections remain executable';
+  end if;
 end $$;
 
 -- Synthetic approved policy exists only in this disposable test database.
@@ -58,6 +64,7 @@ do $$ declare v_owner uuid := 'dddddddd-dddd-dddd-dddd-dddddddddddd';
   v_actor uuid := '40000000-0000-0000-0000-000000000004';
   v_job uuid; v_check uuid; v_missing uuid; v_policy uuid; v_agreement uuid;
   v_batch uuid; v_line uuid; v_correction uuid; v_snapshot jsonb; v_payment uuid;
+  v_reconciliation uuid;
 begin
   insert into public.owners(id,username,display_name) values (v_owner,'synthetic','Synthetic Settlement');
   v_agreement := public.v2_change_agreement(v_owner,'DIRECT_2_WAY',65000,90000,
@@ -90,6 +97,40 @@ begin
       'quotedCostCents',185000,'actualCostCents',105000,
       'partnerDueCents',57500,'commissionCents',0,
       'gangCutCents',30000,'yeromeResidualCents',107500)));
+  -- Two receipts can balance monthly while a malicious line shifts $0.01 of
+  -- partner due between dates. The batch trigger must reject that snapshot.
+  declare v_second uuid; v_tampered jsonb;
+  begin
+    insert into public.job_paychecks(job_id,pay_date,status)
+      values (v_job,'2026-02-27','scheduled') returning id into v_second;
+    perform public.v2_record_receipt(v_second,
+      '{"actual_gross_cents":120000,"actual_net_received_cents":100000,
+        "federal_withheld_cents":20000,"social_security_withheld_cents":0,
+        "medicare_withheld_cents":0,"additional_medicare_withheld_cents":0,
+        "state_withheld_cents":0,"other_deductions_cents":0}'::jsonb,v_actor);
+    v_tampered := jsonb_build_object(
+      'calculationVersion','receipt-net-closed-month-proposal-v1',
+      'ownerId',v_owner,'calendarMonth','2026-02-01',
+      'agreementVersionId',v_agreement,'partnership','DIRECT_2_WAY',
+      'activeJobCount',1,'afterTaxCents',400000,'quotedCostCents',185000,
+      'actualCostCents',105000,'partnerDueCents',107500,'commissionCents',0,
+      'gangCutCents',40000,'yeromeResidualCents',147500,
+      'lines',jsonb_build_array(
+        jsonb_build_object('paycheckId',v_check,'payDate','2026-02-13',
+          'receiptCorrectionSequence',0,'sourceGrossCents',350000,'sourceNetCents',300000,
+          'quotedCostCents',138750,'actualCostCents',78750,
+          'partnerDueCents',80626,'commissionCents',0,'gangCutCents',30000,
+          'yeromeResidualCents',110624),
+        jsonb_build_object('paycheckId',v_second,'payDate','2026-02-27',
+          'receiptCorrectionSequence',0,'sourceGrossCents',120000,'sourceNetCents',100000,
+          'quotedCostCents',46250,'actualCostCents',26250,
+          'partnerDueCents',26874,'commissionCents',0,'gangCutCents',10000,
+          'yeromeResidualCents',36876)));
+    perform public.v2_post_settlement_batch(v_policy,v_tampered,'tampered-lines',v_actor);
+    raise exception 'Tampered but month-balanced lines were accepted';
+  exception when others then
+    if SQLERRM <> 'Per-check settlement allocation does not match weighted cents' then raise; end if;
+  end;
   begin
     perform public.v2_create_job(v_owner,'Partial Month Employer','Support','active',
       '2026-02-15',null,'2026-02-15','hourly',1850,35,null,'biweekly',
@@ -155,14 +196,20 @@ begin
   exception when others then
     if SQLERRM = 'Payment allowed before correction adjustment' then raise; end if;
   end;
-  perform public.v2_record_settlement_adjustment(v_line,-1000,0,-500,0,-100,-400,
-    v_correction,'Corrected February paystub','synthetic-adjustment',v_actor);
+  v_reconciliation := public.v2_reconcile_settlement_correction(v_line,v_correction,
+    'synthetic-adjustment',v_actor);
+  if public.v2_reconcile_settlement_correction(v_line,v_correction,
+      'synthetic-adjustment',v_actor) <> v_reconciliation then
+    raise exception 'Correction replay duplicated adjustments'; end if;
+  if (select count(*) from public.v2_settlement_adjustments
+      where reconciliation_id = v_reconciliation) <> 1 then
+    raise exception 'Formula reconciliation did not produce one checked change'; end if;
   begin
-    perform public.v2_record_settlement_adjustment(v_line,-1000,0,-500,0,-100,-400,
-      v_correction,'Different reason','synthetic-adjustment',v_actor);
-    raise exception 'Mismatched adjustment replay was accepted';
+    perform public.v2_reconcile_settlement_correction(v_line,v_correction,
+      'different-key',v_actor);
+    raise exception 'Correction posted under a different key';
   exception when others then
-    if SQLERRM <> 'Adjustment replay mismatch' then raise; end if;
+    if SQLERRM <> 'Correction already reconciled under another key' then raise; end if;
   end;
   perform public.v2_record_partner_payment(v_line,47000,'2026-03-03T12:00:00Z',
     'final-synthetic','final-payment-key',v_actor);
@@ -171,6 +218,127 @@ begin
       (select sum(amount_cents) from public.v2_partner_payments where settlement_id = v_line)
       from public.v2_payrun_settlements where id = v_line) <> 0 then
     raise exception 'Corrected settlement did not reconcile to paid amount'; end if;
+  perform public.v2_record_receipt(v_check,
+    '{"actual_gross_cents":350000,"actual_net_received_cents":298000,
+      "federal_withheld_cents":52000,"social_security_withheld_cents":0,
+      "medicare_withheld_cents":0,"additional_medicare_withheld_cents":0,
+      "state_withheld_cents":0,"other_deductions_cents":0}'::jsonb,
+    v_actor,'Second corrected bank/paystub match');
+  select id into v_correction from public.v2_paycheck_corrections
+    where job_paycheck_id = v_check and sequence = 2;
+  begin
+    perform public.v2_reconcile_settlement_correction(v_line,v_correction,
+      'would-overpay',v_actor);
+    raise exception 'Correction reduced due below already-paid amount';
+  exception when others then
+    if SQLERRM <> 'Corrected due is below recorded payment; approved credit or recovery needed' then raise; end if;
+  end;
+  if (select count(*) from public.v2_settlement_reconciliations
+      where correction_id = v_correction) <> 0 then
+    raise exception 'Blocked overpaid correction created a reconciliation'; end if;
+end $$;
+
+-- A corrected first receipt changes the weighted allocation on both dated
+-- checks. The unchanged second receipt must still get a balanced adjustment.
+do $$ declare v_owner uuid := 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+  v_actor uuid := '40000000-0000-0000-0000-000000000004';
+  v_job uuid; v_first uuid; v_second uuid; v_agreement uuid; v_policy uuid;
+  v_batch uuid; v_first_line uuid; v_second_line uuid; v_correction uuid; v_group uuid;
+  v_snapshot jsonb; v_first_partner bigint; v_second_partner bigint;
+  v_first_quoted bigint; v_second_quoted bigint; v_first_actual bigint;
+  v_second_actual bigint; v_first_profit bigint; v_second_profit bigint;
+begin
+  insert into public.owners(id,username,display_name)
+    values (v_owner,'synthetic-two','Two Check Settlement');
+  v_agreement := public.v2_change_agreement(v_owner,'DIRECT_2_WAY',65000,90000,
+    'synthetic-two-check-contract',true,'2026-02-01',v_actor);
+  v_job := public.v2_create_job(v_owner,'Two Check Employer','Support','active',
+    '2026-02-01',null,'2026-02-01','hourly',1850,35,null,'biweekly',
+    '2026-02-13',26,v_actor);
+  insert into public.job_paychecks(job_id,pay_date,status)
+    values (v_job,'2026-02-13','scheduled') returning id into v_first;
+  insert into public.job_paychecks(job_id,pay_date,status)
+    values (v_job,'2026-02-27','scheduled') returning id into v_second;
+  perform public.v2_record_receipt(v_first,
+    '{"actual_gross_cents":250000,"actual_net_received_cents":200000,
+      "federal_withheld_cents":50000,"social_security_withheld_cents":0,
+      "medicare_withheld_cents":0,"additional_medicare_withheld_cents":0,
+      "state_withheld_cents":0,"other_deductions_cents":0}'::jsonb,v_actor);
+  perform public.v2_record_receipt(v_second,
+    '{"actual_gross_cents":120000,"actual_net_received_cents":100000,
+      "federal_withheld_cents":20000,"social_security_withheld_cents":0,
+      "medicare_withheld_cents":0,"additional_medicare_withheld_cents":0,
+      "state_withheld_cents":0,"other_deductions_cents":0}'::jsonb,v_actor);
+  insert into public.v2_settlement_policy_approvals(owner_id,policy_version,
+    agreement_reference,legal_review_reference,effective_from,enabled,approved_at,approved_by)
+    values (v_owner,'receipt-net-closed-month-proposal-v1',
+      'synthetic-two-check-contract','synthetic-legal-test','2026-02-01',true,now(),v_actor)
+    returning id into v_policy;
+  v_snapshot := jsonb_build_object(
+    'calculationVersion','receipt-net-closed-month-proposal-v1',
+    'ownerId',v_owner,'calendarMonth','2026-02-01',
+    'agreementVersionId',v_agreement,'partnership','DIRECT_2_WAY',
+    'activeJobCount',1,'afterTaxCents',300000,'quotedCostCents',185000,
+    'actualCostCents',105000,'partnerDueCents',57500,'commissionCents',0,
+    'gangCutCents',30000,'yeromeResidualCents',107500,
+    'lines',jsonb_build_array(
+      jsonb_build_object('paycheckId',v_first,'payDate','2026-02-13',
+        'receiptCorrectionSequence',0,'sourceGrossCents',250000,'sourceNetCents',200000,
+        'quotedCostCents',123333,'actualCostCents',70000,
+        'partnerDueCents',38333,'commissionCents',0,'gangCutCents',20000,
+        'yeromeResidualCents',71667),
+      jsonb_build_object('paycheckId',v_second,'payDate','2026-02-27',
+        'receiptCorrectionSequence',0,'sourceGrossCents',120000,'sourceNetCents',100000,
+        'quotedCostCents',61667,'actualCostCents',35000,
+        'partnerDueCents',19167,'commissionCents',0,'gangCutCents',10000,
+        'yeromeResidualCents',35833)));
+  v_batch := public.v2_post_settlement_batch(v_policy,v_snapshot,'two-check-month',v_actor);
+  select id into v_first_line from public.v2_payrun_settlements
+    where batch_id = v_batch and job_paycheck_id = v_first;
+  select id into v_second_line from public.v2_payrun_settlements
+    where batch_id = v_batch and job_paycheck_id = v_second;
+  perform public.v2_record_receipt(v_first,
+    '{"actual_gross_cents":250000,"actual_net_received_cents":199000,
+      "federal_withheld_cents":51000,"social_security_withheld_cents":0,
+      "medicare_withheld_cents":0,"additional_medicare_withheld_cents":0,
+      "state_withheld_cents":0,"other_deductions_cents":0}'::jsonb,
+    v_actor,'Two-check receipt correction');
+  select id into v_correction from public.v2_paycheck_corrections
+    where job_paycheck_id = v_first and sequence = 1;
+  begin
+    perform public.v2_record_partner_payment(v_second_line,10000,
+      '2026-03-01T12:00:00Z','other-check-while-pending',
+      'blocked-other-check-payment',v_actor);
+    raise exception 'Other check was paid during pending month correction';
+  exception when others then
+    if SQLERRM <> 'Month has an unreconciled receipt correction' then raise; end if;
+  end;
+  v_group := public.v2_reconcile_settlement_correction(v_first_line,v_correction,
+    'two-check-correction',v_actor);
+  if (select count(*) from public.v2_settlement_adjustments
+      where reconciliation_id = v_group) <> 2 then
+    raise exception 'Two-check correction did not rebalance both checks'; end if;
+  select s.partner_due_cents + coalesce(sum(a.partner_due_delta_cents),0),
+      s.quoted_cost_cents + coalesce(sum(a.quoted_cost_delta_cents),0),
+      s.actual_cost_cents + coalesce(sum(a.actual_cost_delta_cents),0),
+      s.yerome_residual_cents + coalesce(sum(a.yerome_delta_cents),0)
+    into v_first_partner,v_first_quoted,v_first_actual,v_first_profit
+    from public.v2_payrun_settlements s
+    left join public.v2_settlement_adjustments a on a.settlement_id = s.id
+    where s.job_paycheck_id = v_first group by s.id;
+  select s.partner_due_cents + coalesce(sum(a.partner_due_delta_cents),0),
+      s.quoted_cost_cents + coalesce(sum(a.quoted_cost_delta_cents),0),
+      s.actual_cost_cents + coalesce(sum(a.actual_cost_delta_cents),0),
+      s.yerome_residual_cents + coalesce(sum(a.yerome_delta_cents),0)
+    into v_second_partner,v_second_quoted,v_second_actual,v_second_profit
+    from public.v2_payrun_settlements s
+    left join public.v2_settlement_adjustments a on a.settlement_id = s.id
+    where s.job_paycheck_id = v_second group by s.id;
+  if (v_first_partner,v_second_partner,v_first_quoted,v_second_quoted,
+      v_first_actual,v_second_actual,v_first_profit,v_second_profit)
+     is distinct from (37936::bigint,19064::bigint,123127::bigint,61873::bigint,
+       69883::bigint,35117::bigint,71281::bigint,35819::bigint) then
+    raise exception 'Corrected weighted allocations do not match independent cent fixture'; end if;
 end $$;
 
 do $$ declare first_agreement uuid; second_agreement uuid; begin
@@ -285,6 +453,27 @@ do $$ declare accrual uuid; referral uuid; begin
   exception when others then
     if SQLERRM <> 'Invalid prospective referral end' then raise; end if;
   end;
+  -- Replacement ends today's relationship without erasing January's earned
+  -- commission. The nested block rolls the synthetic replacement back so
+  -- subsequent role assertions keep their original fixture identity.
+  declare
+    v_replacement uuid; v_prior_month uuid;
+  begin
+    v_replacement := public.v2_replace_referral(referral,
+      'cccccccc-cccc-cccc-cccc-cccccccccccc',
+      'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',current_date,false,
+      '40000000-0000-0000-0000-000000000004');
+    if (select active from public.referrals where id = referral)
+       or not (select active from public.referrals where id = v_replacement) then
+      raise exception 'Referral replacement did not change active relationship'; end if;
+    v_prior_month := public.v2_post_full_month_commission(referral,'2026-01-01',
+      '40000000-0000-0000-0000-000000000004');
+    if (select amount_cents from public.v2_commission_accruals where id = v_prior_month) <> 40000 then
+      raise exception 'Ended referral lost valid earlier accrual'; end if;
+    raise exception 'Synthetic replacement verified';
+  exception when others then
+    if SQLERRM <> 'Synthetic replacement verified' then raise; end if;
+  end;
 end $$;
 
 set role authenticated;
@@ -350,7 +539,7 @@ end $$;
 
 set request.jwt.claims = '{"sub":"40000000-0000-0000-0000-000000000004","app_metadata":{"role":"admin"}}';
 do $$ declare r record; begin
-  if (select count(*) from public.jobs) <> 4 then raise exception 'Admin job access failed'; end if;
+  if (select count(*) from public.jobs) <> 5 then raise exception 'Admin job access failed'; end if;
   select * into r from public.owner_earned_commissions('cccccccc-cccc-cccc-cccc-cccccccccccc', 2026);
   if r.referred_display_name <> 'Person B' then raise exception 'Admin referral access failed'; end if;
   begin

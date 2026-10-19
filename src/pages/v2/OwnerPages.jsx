@@ -95,14 +95,16 @@ export function OwnerPayments() {
     <Card title="Contractual partner distributions" subtitle="Posted from a completed, reviewed pay period; separate from employer deposits.">
       {data.partnerSettlements?.length ? <ul className="v2-list">{data.partnerSettlements.map((row) =>
         <li key={row.paycheckId}><strong>Paycheck dated {row.payDate}</strong>
-          <p>Contractual share due: {money(row.partnerDueCents)} · recorded paid: {money(row.paidCents)} · outstanding: {money(row.owedCents)}</p>
+          <p>Original share: {money(row.partnerDueOriginalCents)} · recorded changes: {money(row.partnerDueChangesCents)} · current due: {money(row.partnerDueCents)}</p>
+          <p>Recorded paid: {money(row.paidCents)} · outstanding: {money(row.owedCents)}</p>
+          {row.overpaidCents ? <p>Recorded amount above revised due: {money(row.overpaidCents)}. Administrator review required.</p> : null}
           {row.lastPaidAt ? <p>Last recorded distribution: {row.lastPaidAt.slice(0, 10)}</p> : null}
           {row.needsAdjustment ? <p>Paystub correction is pending a contractual adjustment review.</p> : null}
         </li>)}</ul> : <p className="muted">No contractual distributions have been posted. Employer receipts above do not create a settled share.</p>}
     </Card>
     <Card title="Tax position" subtitle="This is informational and does not make another deduction from your share.">
       <p>Estimated annual tax liability: {money(data.annualTaxLiabilityEstimateCents)}</p>
-      {data.annualTaxNeedsReview ? <p className="muted">Annual tax needs dated wage review after a pay-term change. The current monthly run rate remains an estimate.</p> : null}
+      {data.annualTaxNeedsReview ? <p className="muted">Annual tax needs dated wage review after a pay-term or job-status change. The current monthly run rate remains an estimate.</p> : null}
       <p>Withheld on recorded paychecks: {money(data.taxReconciliation?.actualWithholdingCents)}</p>
       <p>Social Security withheld on recorded paychecks: {money(data.taxReconciliation?.actualSocialSecurityWithheldCents)}</p>
       <p>Potential Social Security excess above the 2026 annual cap: {money(data.taxReconciliation?.potentialExcessSocialSecurityCents)}</p>
@@ -129,7 +131,7 @@ export function OwnerCommissions() {
     </div>
     <Card title="Referred US Persons">
       {referrals.length ? <ul className="v2-list">{referrals.map((row) => <li key={row.referralId}>
-        <strong>{row.referredDisplayName}</strong> · {row.eligibleJobCount} eligible active jobs
+        <strong>{row.referredDisplayName}</strong> · {row.currentlyEarning ? `${row.eligibleJobCount} eligible active jobs` : 'No current accrual estimate'}
         <p>{money(row.ratePerJobCents)} per job/month · {money(row.monthlyEquivalentCents)} monthly equivalent</p>
         <p>Recorded accrued: {money(row.accruedCents)} · paid: {money(row.paidCents)} · owed: {money(row.owedCents)}</p>
         {row.events?.length ? <details><summary>Recorded months</summary><ul className="v2-list">

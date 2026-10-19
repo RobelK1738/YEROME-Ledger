@@ -2,6 +2,7 @@ import { adminClient, requireAdmin, readJsonBody } from '../_lib/supabaseAdmin.j
 import { allPages } from '../_lib/v2.js';
 import { PACKAGE_V1 } from '../../src/lib/finance-v2/index.js';
 import { settlementProposal } from '../../src/lib/finance-v2/settlement.js';
+import { adminPostedSettlementDto } from '../../src/lib/finance-v2/posted-settlement.js';
 
 const monthValid = (value) => /^\d{4}-(0[1-9]|1[0-2])-01$/.test(value || '');
 const monthEnd = (month) => new Date(Date.UTC(Number(month.slice(0, 4)),
@@ -124,7 +125,7 @@ async function readMonth(db, ownerId, month) {
 
 async function postedRows(db, ownerId, month) {
   const settlements = await allPages(() => db.from('v2_payrun_settlements')
-    .select('id,job_paycheck_id,batch_id,pay_date,source_net_cents,partner_due_cents,actual_cost_cents,commission_cents,gang_cut_cents,yerome_residual_cents,receipt_correction_sequence')
+    .select('id,job_paycheck_id,batch_id,pay_date,source_net_cents,quoted_cost_cents,partner_due_cents,actual_cost_cents,commission_cents,gang_cut_cents,yerome_residual_cents,receipt_correction_sequence')
     .eq('owner_id', ownerId).gte('pay_date', month).lte('pay_date', monthEnd(month))
     .order('pay_date').order('id'));
   if (!settlements.length) return [];
@@ -133,21 +134,33 @@ async function postedRows(db, ownerId, month) {
     allPages(() => db.from('v2_partner_payments').select('settlement_id,amount_cents,paid_at')
       .in('settlement_id', ids).order('paid_at')),
     allPages(() => db.from('v2_settlement_adjustments')
-      .select('settlement_id,partner_due_delta_cents,after_tax_delta_cents,created_at,receipt_correction_id')
+      .select('settlement_id,partner_due_delta_cents,after_tax_delta_cents,quoted_cost_delta_cents,actual_cost_delta_cents,commission_delta_cents,gang_delta_cents,yerome_delta_cents,created_at,receipt_correction_id')
       .in('settlement_id', ids).order('created_at')),
   ]);
+  const paycheckIds = settlements.map((row) => row.job_paycheck_id);
+  const corrections = [];
+  const reconciled = [];
+  for (let offset = 0; offset < paycheckIds.length; offset += 100) {
+    corrections.push(...await allPages(() => db.from('v2_paycheck_corrections')
+      .select('id,job_paycheck_id,sequence,reason,recorded_at')
+      .in('job_paycheck_id', paycheckIds.slice(offset, offset + 100))
+      .order('sequence')));
+  }
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    reconciled.push(...await allPages(() => db.from('v2_settlement_reconciliations')
+      .select('correction_id').in('corrected_settlement_id', ids.slice(offset, offset + 100))
+      .order('created_at')));
+  }
+  const reconciledIds = new Set(reconciled.map((item) => item.correction_id));
   return settlements.map((row) => {
-    const paidCents = payments.filter((item) => item.settlement_id === row.id)
-      .reduce((sum, item) => sum + Number(item.amount_cents), 0);
-    const dueCents = Number(row.partner_due_cents) + adjustments
-      .filter((item) => item.settlement_id === row.id)
-      .reduce((sum, item) => sum + Number(item.partner_due_delta_cents), 0);
-    return { settlementId: row.id, paycheckId: row.job_paycheck_id, payDate: row.pay_date,
-      sourceNetCents: Number(row.source_net_cents), partnerDueCents: dueCents,
-      paidCents, owedCents: dueCents - paidCents,
-      actualCostCents: Number(row.actual_cost_cents), commissionCents: Number(row.commission_cents),
-      gangCutCents: Number(row.gang_cut_cents), yeromeResidualCents: Number(row.yerome_residual_cents),
-      receiptCorrectionSequence: row.receipt_correction_sequence };
+    const posted = adminPostedSettlementDto(row,
+      adjustments.filter((item) => item.settlement_id === row.id),
+      payments.filter((item) => item.settlement_id === row.id));
+    return { ...posted,
+      pendingCorrections: corrections.filter((item) => item.job_paycheck_id === row.job_paycheck_id &&
+        item.sequence > row.receipt_correction_sequence && !reconciledIds.has(item.id))
+        .map((item) => ({ id: item.id, sequence: item.sequence, reason: item.reason,
+          recordedAt: item.recorded_at })) };
   });
 }
 
@@ -190,16 +203,16 @@ export default async function handler(req, res) {
       if (error) throw error;
       return res.status(201).json({ paymentId: data });
     }
-    if (body.action === 'adjust') {
-      const { data, error } = await db.rpc('v2_record_settlement_adjustment', {
-        p_settlement: body.settlementId, p_after_tax_delta: body.afterTaxDeltaCents,
-        p_actual_delta: body.actualCostDeltaCents, p_partner_delta: body.partnerDueDeltaCents,
-        p_commission_delta: body.commissionDeltaCents, p_gang_delta: body.gangDeltaCents,
-        p_yerome_delta: body.yeromeDeltaCents, p_correction: body.receiptCorrectionId || null,
-        p_reason: body.reason, p_key: body.idempotencyKey, p_actor: auth.user.id,
+    if (body.action === 'reconcile') {
+      if (!body.settlementId || !body.receiptCorrectionId || !body.idempotencyKey) {
+        return res.status(400).json({ error: 'Posted settlement, correction and idempotency key required.' });
+      }
+      const { data, error } = await db.rpc('v2_reconcile_settlement_correction', {
+        p_settlement: body.settlementId, p_correction: body.receiptCorrectionId,
+        p_key: body.idempotencyKey, p_actor: auth.user.id,
       });
       if (error) throw error;
-      return res.status(201).json({ adjustmentId: data });
+      return res.status(201).json({ reconciliationId: data });
     }
     return res.status(400).json({ error: 'Unsupported settlement action.' });
   } catch (error) {
