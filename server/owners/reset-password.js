@@ -3,7 +3,7 @@
 
 import {
   adminClient,
-  requireAdmin,
+  requireAdmin, manageableOwnerIdentity,
   readJsonBody,
   validatePassword,
   serverAudit,
@@ -28,12 +28,15 @@ export default async function handler(req, res) {
     .eq('id', ownerId)
     .maybeSingle();
   if (ownerErr || !owner) return res.status(404).json({ error: 'Owner not found.' });
+  if (!await manageableOwnerIdentity(admin, owner, auth.user.id)) {
+    return res.status(403).json({ error: 'This identity cannot be managed as an Owner.' });
+  }
   if (!owner.auth_user_id) return res.status(400).json({ error: 'Owner has no login to reset.' });
 
   const { error: updErr } = await admin.auth.admin.updateUserById(owner.auth_user_id, {
     password: newPassword,
   });
-  if (updErr) return res.status(400).json({ error: updErr.message || 'Could not reset password.' });
+  if (updErr) return res.status(400).json({ error: 'Could not reset password.' });
 
   await serverAudit(admin, {
     actorUserId: auth.user.id,

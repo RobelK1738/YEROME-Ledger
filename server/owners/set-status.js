@@ -1,7 +1,7 @@
 // POST /api/owners/set-status — Admin-only. Updates an Owner's status and can
 // enable/disable their login by banning/unbanning the auth identity.
 
-import { adminClient, requireAdmin, readJsonBody, serverAudit } from '../_lib/supabaseAdmin.js';
+import { adminClient, requireAdmin, manageableOwnerIdentity, readJsonBody, serverAudit } from '../_lib/supabaseAdmin.js';
 
 const STATUSES = ['active', 'inactive', 'archived'];
 // Effectively permanent ban to disable a login; 'none' re-enables it.
@@ -28,6 +28,9 @@ export default async function handler(req, res) {
     .eq('id', ownerId)
     .maybeSingle();
   if (ownerErr || !owner) return res.status(404).json({ error: 'Owner not found.' });
+  if (!await manageableOwnerIdentity(admin, owner, auth.user.id)) {
+    return res.status(403).json({ error: 'This identity cannot be managed as an Owner.' });
+  }
 
   if (!disableLogin && owner.auth_user_id) {
     const { error: unbanError } = await admin.auth.admin
@@ -36,7 +39,7 @@ export default async function handler(req, res) {
   }
 
   const { error: updErr } = await admin.from('owners').update({ status }).eq('id', ownerId);
-  if (updErr) return res.status(400).json({ error: updErr.message || 'Could not update status.' });
+  if (updErr) return res.status(400).json({ error: 'Could not update status.' });
 
   if (disableLogin && owner.auth_user_id) {
     const { error: banError } = await admin.auth.admin

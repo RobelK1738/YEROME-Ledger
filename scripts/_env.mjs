@@ -30,7 +30,6 @@ export function loadEnv() {
     serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     anonKey: process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY,
     adminEmail: process.env.ADMIN_EMAIL,
-    adminPassword: process.env.ADMIN_PASSWORD,
     ownerAuthDomain: process.env.OWNER_AUTH_DOMAIN || 'owners.local',
   };
 }

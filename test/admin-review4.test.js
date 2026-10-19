@@ -6,7 +6,7 @@ import handler from '../api/index.js';
 // a synthetic HTTP transport. Database rules run separately in PostgreSQL.
 test('Admin routes select historic terms; owners cannot access transfer evidence or mutations', async (t) => {
   const settings = { SUPABASE_URL: 'http://127.0.0.1:19999', SUPABASE_SERVICE_ROLE_KEY: 'synthetic-test-key',
-    ADMIN_EMAIL: 'admin@example.test' };
+    ADMIN_EMAIL: 'robiemelaku@gmail.com' };
   const previous = Object.fromEntries(Object.keys(settings).map((key) => [key, process.env[key]]));
   Object.assign(process.env, settings);
   t.after(() => { for (const key of Object.keys(settings)) {
@@ -17,16 +17,26 @@ test('Admin routes select historic terms; owners cannot access transfer evidence
     { id: 'old', effective_from: '2026-01-01', effective_to: '2026-06-30', first_pay_date: '2026-02-13', pay_frequency: 'biweekly' },
     { id: 'new', effective_from: '2026-07-01', effective_to: null, first_pay_date: '2026-07-31', pay_frequency: 'monthly' },
   ];
+  const jwt = (kind) => `header.${Buffer.from(JSON.stringify({ sub: kind === 'admin' ? 'admin-id' : 'owner-id',
+    session_id: '11111111-1111-1111-1111-111111111111', iat: Math.floor(Date.now() / 1000),
+    aal: kind === 'admin' ? 'aal2' : 'aal1', app_metadata: { role: kind === 'admin' ? 'admin' : 'owner' },
+  })).toString('base64url')}.synthetic`;
   t.mock.method(globalThis, 'fetch', async (input, init) => {
     const url = new URL(input);
     assert.equal(url.origin, settings.SUPABASE_URL); // Never contact a hosted service.
     if (url.pathname === '/auth/v1/user') {
       const token = new Headers(init.headers).get('authorization');
-      return Response.json({ id: token === 'Bearer admin' ? 'admin-id' : 'owner-id',
-        email: token === 'Bearer admin' ? 'admin@example.test' : 'owner@example.test',
-        app_metadata: { role: token === 'Bearer admin' ? 'admin' : 'owner' } });
+      const isAdmin = token === `Bearer ${jwt('admin')}`;
+      return Response.json({ id: isAdmin ? 'admin-id' : 'owner-id',
+        email: isAdmin ? settings.ADMIN_EMAIL : 'owner@example.test',
+        app_metadata: { role: isAdmin ? 'admin' : 'owner' } });
+    }
+    if (url.pathname.endsWith('/v2_authorize_session')) {
+      const body = JSON.parse(init.body);
+      return Response.json(body.p_user === 'admin-id' ? 'admin' : 'owner');
     }
     if (url.pathname.endsWith('/jobs')) return Response.json({ id: 'job' });
+    if (url.pathname.endsWith('/audit_log')) return new Response(null, { status: 201 });
     if (url.pathname.endsWith('/job_compensation_terms')) {
       assert.equal(url.searchParams.has('effective_to'), false);
       return Response.json(terms);
@@ -40,7 +50,7 @@ test('Admin routes select historic terms; owners cannot access transfer evidence
   async function request(route, token, body, method = 'POST') {
     const response = { statusCode: 200, status(code) { this.statusCode = code; return this; },
       setHeader() {}, json(data) { this.data = data; return this; } };
-    await handler({ method, query: { route }, headers: { authorization: `Bearer ${token}` }, body }, response);
+    await handler({ method, query: { route }, headers: { authorization: `Bearer ${jwt(token)}` }, body }, response);
     return response;
   }
   for (const role of ['owner-a', 'miki']) {

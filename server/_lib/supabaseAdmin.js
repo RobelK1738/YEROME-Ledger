@@ -34,27 +34,60 @@ export function anonClient() {
   });
 }
 
-/**
- * Verify the caller is the configured Admin. Checks both the app_metadata role
- * AND that the email matches ADMIN_EMAIL (defense in depth). Returns the user.
- */
-export async function requireAdmin(req) {
+/** Auth verifies the token first; only then read its claims and check live DB state. */
+export async function authorizeRequest(req) {
   const header = req.headers.authorization || req.headers.Authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return { ok: false, status: 401, error: 'Missing authorization token.' };
-
-  const admin = adminClient();
-  const { data, error } = await admin.auth.getUser(token);
-  if (error || !data?.user) return { ok: false, status: 401, error: 'Invalid or expired session.' };
-
-  const { adminEmail } = getEnv();
-  const role = data.user.app_metadata?.role;
-  const emailMatches =
-    Boolean(adminEmail) && data.user.email?.toLowerCase() === String(adminEmail).toLowerCase();
-  if (role !== 'admin' || !emailMatches) {
-    return { ok: false, status: 403, error: 'YEROME access required.' };
+  if (!token) return { ok: false, status: 401, error: 'Not authorized.' };
+  const db = adminClient();
+  try {
+    const { data, error } = await db.auth.getUser(token);
+    if (error || !data?.user) return { ok: false, status: 401, error: 'Not authorized.' };
+    const user = data.user;
+    const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+    if (claims.sub !== user.id || !Number.isSafeInteger(claims.iat)) {
+      return { ok: false, status: 403, error: 'Not authorized.' };
+    }
+    const { adminEmail } = getEnv();
+    const { data: role, error: authError } = await db.rpc('v2_authorize_session', {
+      p_user: user.id, p_session: claims.session_id || null, p_iat: claims.iat,
+      p_aal: claims.aal || null, p_role: claims.app_metadata?.role || null,
+      p_admin_email: adminEmail || null,
+    });
+    const adminIdentityMatches = adminEmail === 'robiemelaku@gmail.com' &&
+      user.email?.toLowerCase() === adminEmail && user.app_metadata?.role === 'admin';
+    if (authError || !['admin', 'admin_mfa_required', 'owner'].includes(role) ||
+        (role.startsWith('admin') && !adminIdentityMatches) ||
+        (role === 'admin' && claims.aal !== 'aal2') ||
+        (role === 'owner' && user.app_metadata?.role !== 'owner')) {
+      await serverAudit(db, { actorUserId: user.id, action: 'security.authorization_denied',
+        entityType: 'auth_user', entityId: user.id, metadata: {} });
+      return { ok: false, status: 403, error: 'Not authorized.' };
+    }
+    return { ok: true, role, user, db };
+  } catch {
+    return { ok: false, status: 403, error: 'Not authorized.' };
   }
-  return { ok: true, user: data.user };
+}
+
+/** Every privileged route shares the pinned UUID, current session and MFA gate. */
+export async function requireAdmin(req) {
+  const auth = await authorizeRequest(req);
+  if (!auth.ok) return auth;
+  if (auth.role !== 'admin') {
+    await serverAudit(auth.db, { actorUserId: auth.user.id, action: 'security.admin_access_denied',
+      entityType: 'auth_user', entityId: auth.user.id, metadata: {} });
+    return { ok: false, status: 403, error: 'Not authorized.' };
+  }
+  return auth;
+}
+
+/** Owner management must never target the canonical Admin or another admin role. */
+export async function manageableOwnerIdentity(db, owner, adminUserId) {
+  if (!owner.auth_user_id) return true;
+  if (owner.auth_user_id === adminUserId) return false;
+  const { data, error } = await db.auth.admin.getUserById(owner.auth_user_id);
+  return !error && data?.user?.app_metadata?.role === 'owner';
 }
 
 /** Parse a JSON request body defensively (Vercel usually pre-parses it). */

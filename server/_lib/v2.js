@@ -1,33 +1,17 @@
-import { adminClient, getEnv } from './supabaseAdmin.js';
+import { authorizeRequest } from './supabaseAdmin.js';
 import { projectPerson } from '../../src/lib/finance-v2/projection.js';
 import { postedSettlementView } from '../../src/lib/finance-v2/posted-settlement.js';
 
-function bearer(req) {
-  const value = req.headers.authorization || req.headers.Authorization || '';
-  return value.startsWith('Bearer ') ? value.slice(7) : null;
-}
-
 export async function verifiedPrincipal(req) {
-  const token = bearer(req);
-  if (!token) return { ok: false, status: 401 };
-  const db = adminClient();
-  const { data, error } = await db.auth.getUser(token);
-  if (error || !data?.user) return { ok: false, status: 401 };
-  const user = data.user;
-  const role = user.app_metadata?.role;
-  if (role === 'admin') {
-    const { adminEmail } = getEnv();
-    if (!adminEmail || user.email?.toLowerCase() !== String(adminEmail).toLowerCase()) {
-      return { ok: false, status: 403 };
-    }
-    return { ok: true, role, user, db };
-  }
-  if (role !== 'owner') return { ok: false, status: 403 };
-  // Never trust a supplied owner ID, username, URL segment, or stale JWT claim.
-  const { data: owner, error: ownerError } = await db.from('owners')
-    .select('id, status').eq('auth_user_id', user.id).maybeSingle();
-  if (ownerError || !owner || owner.status !== 'active') return { ok: false, status: 403 };
-  return { ok: true, role, user, ownerId: owner.id, db };
+  const auth = await authorizeRequest(req);
+  if (!auth.ok) return auth;
+  if (auth.role === 'admin') return auth;
+  if (auth.role !== 'owner') return { ok: false, status: 403 };
+  const { db, user } = auth;
+  const { data: owner, error } = await db.from('owners')
+    .select('id,status').eq('auth_user_id', user.id).maybeSingle();
+  if (error || owner?.status !== 'active') return { ok: false, status: 403 };
+  return { ...auth, ownerId: owner.id };
 }
 
 function unwrap(result) {

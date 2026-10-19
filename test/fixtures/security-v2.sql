@@ -4,6 +4,22 @@ insert into auth.users (id) values
  ('20000000-0000-0000-0000-000000000002'),
  ('30000000-0000-0000-0000-000000000003'),
  ('40000000-0000-0000-0000-000000000004');
+update auth.users set email = case id
+  when '40000000-0000-0000-0000-000000000004' then 'robiemelaku@gmail.com'
+  else id::text || '@owners.local' end,
+  raw_app_meta_data = jsonb_build_object('role',case when id =
+    '40000000-0000-0000-0000-000000000004' then 'admin' else 'owner' end),
+  email_confirmed_at = now();
+insert into auth.mfa_factors(id,user_id,status) values
+ ('44444444-4444-4444-4444-444444444444','40000000-0000-0000-0000-000000000004','verified');
+insert into auth.sessions(id,user_id,aal,factor_id) values
+ ('11111111-1111-1111-1111-111111111111','10000000-0000-0000-0000-000000000001','aal1',null),
+ ('22222222-2222-2222-2222-222222222222','20000000-0000-0000-0000-000000000002','aal1',null),
+ ('33333333-3333-3333-3333-333333333333','30000000-0000-0000-0000-000000000003','aal1',null),
+ ('44444444-0000-0000-0000-000000000004','40000000-0000-0000-0000-000000000004','aal2',
+   '44444444-4444-4444-4444-444444444444');
+select public.v2_pin_admin('40000000-0000-0000-0000-000000000004','synthetic-test-bootstrap');
+
 insert into public.owners (id, auth_user_id, username, display_name) values
  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '10000000-0000-0000-0000-000000000001', 'a', 'Person A'),
  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '20000000-0000-0000-0000-000000000002', 'b', 'Person B'),
@@ -666,7 +682,7 @@ do $$ declare accrual uuid; referral uuid; payment uuid; begin
 end $$;
 
 set role authenticated;
-set request.jwt.claims = '{"sub":"10000000-0000-0000-0000-000000000001","app_metadata":{"role":"owner"}}';
+select set_config('request.jwt.claims',jsonb_build_object('sub','10000000-0000-0000-0000-000000000001','session_id','11111111-1111-1111-1111-111111111111','iat',extract(epoch from now())::bigint,'aal','aal1','app_metadata',jsonb_build_object('role','owner'))::text,false);
 do $$ declare count_rows int; begin
   select count(*) into count_rows from public.jobs;
   if count_rows <> 0 then raise exception 'Owner A raw job row exposed: %', count_rows; end if;
@@ -714,7 +730,7 @@ do $$ declare count_rows int; begin
   end;
 end $$;
 
-set request.jwt.claims = '{"sub":"30000000-0000-0000-0000-000000000003","app_metadata":{"role":"owner"}}';
+select set_config('request.jwt.claims',jsonb_build_object('sub','30000000-0000-0000-0000-000000000003','session_id','33333333-3333-3333-3333-333333333333','iat',extract(epoch from now())::bigint,'aal','aal1','app_metadata',jsonb_build_object('role','owner'))::text,false);
 do $$ declare r record; begin
   select * into r from public.owner_earned_commissions(null, 2026);
   if r.eligible_job_count <> 0 or r.monthly_commission_cents <> 0
@@ -729,7 +745,7 @@ do $$ declare r record; begin
   end if;
 end $$;
 
-set request.jwt.claims = '{"sub":"40000000-0000-0000-0000-000000000004","app_metadata":{"role":"admin"}}';
+select set_config('request.jwt.claims',jsonb_build_object('sub','40000000-0000-0000-0000-000000000004','session_id','44444444-0000-0000-0000-000000000004','iat',extract(epoch from now())::bigint,'aal','aal2','app_metadata',jsonb_build_object('role','admin'))::text,false);
 do $$ declare r record; begin
   if (select count(*) from public.jobs) <> 5 then raise exception 'Admin job access failed'; end if;
   select * into r from public.owner_earned_commissions('cccccccc-cccc-cccc-cccc-cccccccccccc', 2026);

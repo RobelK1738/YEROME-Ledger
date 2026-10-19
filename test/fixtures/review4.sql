@@ -159,7 +159,7 @@ begin
     raise exception 'Implicit verification RPC remains executable'; end if;
 end $$;
 set role authenticated;
-set request.jwt.claims = '{"sub":"30000000-0000-0000-0000-000000000003","app_metadata":{"role":"owner"}}';
+select set_config('request.jwt.claims',jsonb_build_object('sub','30000000-0000-0000-0000-000000000003','session_id','33333333-3333-3333-3333-333333333333','iat',extract(epoch from now())::bigint,'aal','aal1','app_metadata',jsonb_build_object('role','owner'))::text,false);
 do $$ begin
   if (select count(*) from public.v2_external_transfers) <> 0 or
      (select count(*) from public.v2_transfer_verifications) <> 0 then
@@ -170,7 +170,7 @@ do $$ begin
   exception when insufficient_privilege then null;
   end;
 end $$;
-set request.jwt.claims = '{"sub":"40000000-0000-0000-0000-000000000004","app_metadata":{"role":"admin"}}';
+select set_config('request.jwt.claims',jsonb_build_object('sub','40000000-0000-0000-0000-000000000004','session_id','44444444-0000-0000-0000-000000000004','iat',extract(epoch from now())::bigint,'aal','aal2','app_metadata',jsonb_build_object('role','admin'))::text,false);
 do $$ begin
   if not exists (select 1 from public.v2_transfer_verifications where evidence_reference = 'proof-1') then
     raise exception 'Admin cannot inspect transfer verification'; end if;

@@ -3,7 +3,7 @@
 // anon client, and returns session tokens for the client to apply. This keeps
 // the internal email format out of the browser and out of the Owner UI.
 
-import { anonClient, getEnv, readJsonBody } from './_lib/supabaseAdmin.js';
+import { anonClient, getEnv, readJsonBody, authorizeRequest } from './_lib/supabaseAdmin.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
@@ -28,9 +28,16 @@ export default async function handler(req, res) {
   // Only Owners may sign in through this endpoint.
   const role = data.user?.app_metadata?.role;
   if (role !== 'owner') {
-    return res.status(403).json({ error: 'This account cannot sign in as an Owner.' });
+    await anon.auth.signOut({ scope: 'local' });
+    return res.status(401).json({ error: 'Invalid username or password.' });
   }
 
+  const authorized = await authorizeRequest({ headers: { authorization: `Bearer ${data.session.access_token}` } });
+  if (!authorized.ok || authorized.role !== 'owner') {
+    await anon.auth.signOut({ scope: 'local' });
+    return res.status(401).json({ error: 'Invalid username or password.' });
+  }
+  res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     access_token: data.session.access_token,
     refresh_token: data.session.refresh_token,
