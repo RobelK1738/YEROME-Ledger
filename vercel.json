@@ -2,6 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "headers": [
+    { "source": "/reset-password", "headers": [
+      { "key": "Referrer-Policy", "value": "no-referrer" },
+      { "key": "Cache-Control", "value": "no-store" }
+    ] }
+  ],
   "rewrites": [
     { "source": "/api/:route*", "destination": "/api/index?route=:route*" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }

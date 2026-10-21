@@ -6,6 +6,7 @@ import { Layout } from './components/Layout.jsx';
 import { RequireRole } from './components/RequireRole.jsx';
 import { Loading } from './components/ui/Loading.jsx';
 import LoginPage from './pages/LoginPage.jsx';
+import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 import AdminMfaPage from './pages/AdminMfaPage.jsx';
 import AdminOverview from './pages/v2/AdminOverview.jsx';
 import AdminPeople from './pages/v2/AdminPeople.jsx';
@@ -43,9 +44,10 @@ function HomeRedirect() {
   return <Navigate to={role === 'admin' ? '/admin' : '/owner'} replace />;
 }
 
-export default function App() {
+export default function App({ recoveryCallback }) {
   return <Routes>
     <Route path="/login" element={<LoginPage />} />
+    <Route path="/reset-password" element={<ResetPasswordPage callback={recoveryCallback} />} />
     <Route path="/admin/mfa" element={<AdminMfaPage />} />
     <Route element={<RequireRole role="admin"><Layout navItems={ADMIN_NAV} portalLabel="YEROME Admin" /></RequireRole>}>
       <Route path="/admin" element={<AdminOverview />} />

@@ -2,7 +2,7 @@
 // There is intentionally NO signup / create-account option.
 
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Field, TextInput } from '../components/ui/Field.jsx';
 import { Loading } from '../components/ui/Loading.jsx';
@@ -126,6 +126,10 @@ export default function LoginPage() {
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+
+        {mode === 'admin' ? <p className="login-note">
+          <Link to="/reset-password">Forgot YEROME Admin password?</Link>
+        </p> : null}
 
         <p className="login-note">
           Access is provisioned by YEROME. There is no public sign-up.
