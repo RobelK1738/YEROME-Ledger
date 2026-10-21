@@ -17,6 +17,15 @@ exact manifest and authorization.
   bundle points to Supabase project `uliolbtonhrmjwaeliyj`. The service-role
   key and protected `ADMIN_EMAIL` **values** were not read, so their exact
   project/email scope still needs a private check before mutation.
+- The authorized, one-time Preview build diagnostic on this patch branch ran
+  against the expected Supabase project URL but returned
+  `FAIL_ADMIN_EMAIL_MISMATCH`: the protected Preview `ADMIN_EMAIL` was present
+  and did not equal the canonical address. It stopped **before** the Auth
+  user-list request, so the Preview service key was not verified by this
+  diagnostic. The build emitted only fixed status codes, never values. The
+  existing Production deployment's protected values remain unverified; do
+  not infer them from the Preview outcome. Correct and privately verify the
+  Vercel Admin-email setting before requesting deployment authorization.
 - Supabase project `uliolbtonhrmjwaeliyj` in organization
   `pqrjqbbnntlvcpyhuorm` is `ACTIVE_HEALTHY` (PostgreSQL 17.6.1). The
   password grant returning HTTP 200 followed by `/api/auth/session` HTTP 403
@@ -114,7 +123,7 @@ exact manifest and authorization.
   configuration verdict. [Supabase documents the management Auth-config read
   endpoint](https://supabase.com/docs/reference/api/v1-get-auth-service-config).
 
-## Existing runtime evidence and optional preview check
+## Existing runtime evidence and Preview diagnostic
 
 - The latest READY production deployment was created at 08:03:47 UTC. Six
   `security.authorization_denied` audit rows for the designated Admin were
@@ -127,20 +136,21 @@ exact manifest and authorization.
   the deployed service credential reaches this Supabase project. It does not
   establish the opaque key's exact value or the deployed `ADMIN_EMAIL` value:
   the missing RPC causes denial before Admin-email equality can be observed.
-- No unauthenticated diagnostic endpoint will be added. If the founder
-  requires a pre-approval check of the opaque Vercel variables, propose a
-  **separately authorized preview-only build-time assertion**: run only when
-  `VERCEL_ENV=preview` and the Git branch is this patch branch; check the
-  project URL and canonical `ADMIN_EMAIL`, then use the server key for one
-  read-only Auth Admin user-list request against the exact project. Emit only
-  a pass/fail code, with no values, user records, UUIDs, tokens, or network
-  error bodies in logs. Do not add an HTTP route, write to Supabase, run in
-  production builds, or merge the diagnostic. After recording the result,
-  remove the temporary build hook/script in a follow-up patch and confirm a
-  clean preview build. The current preview environment shares these variable
-  entries with production, without branch overrides; verify that scope again
-  before running. This is a **proposal**, not an executed check or approval
-  to create a preview deployment.
+- The founder authorized a one-time, build-only diagnostic scoped to
+  `VERCEL_ENV=preview` and branch `fix/production-v2-migration-rollout`.
+  Three diagnostic builds ran on that branch: `aa4cb64` returned the coarse
+  `FAIL_CONFIG` code; `cf81e2e` narrowed it to `FAIL_ADMIN_EMAIL`; and
+  `6693258` established `FAIL_ADMIN_EMAIL_MISMATCH`, rather than a missing
+  variable. The expected project URL passed. Every build failed closed
+  before the Auth user-list call, so **zero** Auth user-list requests were
+  made and the service key's Preview scope remains unverified. Logs exposed
+  fixed codes only. There was no HTTP diagnostic route, database write, Auth
+  change, MFA setting change or Production build. The temporary script,
+  test and build hook were removed in the following commit. Current Vercel
+  metadata lists the same sensitive variable entry for Preview and
+  Production with no branch override, but the values are non-readable and
+  the existing Production deployment's runtime snapshot is distinct from a
+  new Preview build. Its protected `ADMIN_EMAIL` value is **not verified**.
 
 ## Controlled maintenance sequence after `DEPLOY V2`
 
@@ -208,6 +218,9 @@ The CLI's `migration repair` and `db push` semantics are documented by
   deployed API route.
 - The deployed Vercel service key has strong production runtime evidence for
   functional scope, but its exact value and `ADMIN_EMAIL` remain non-readable.
+  Preview build verification **failed** because its `ADMIN_EMAIL` is present
+  but mismatched; no Preview service-key Auth request was made. The Vercel
+  setting needs a private correction and a fresh, authorized validation.
   A local service key and the public production key passed separate read-only
   project checks. Supabase Auth signup is verified disabled; project TOTP
   enrollment/verification switches are not exposed by the public API.
