@@ -138,7 +138,9 @@ The CLI's `migration repair` and `db push` semantics are documented by
 
 ## Remaining gates before authorization
 
-- Patch review/merge and production server revision for the pin-only script.
+- Review the patch commit and run its pin-only script from the trusted local
+  checkout. The production server is already on v2; this script is not a
+  deployed API route.
 - Private verification of protected Vercel values, hosted Auth signup/MFA
   settings and CLI passwordless connectivity; none was inferred from an env
   variable **name**. The browser's public Supabase URL was verified.
