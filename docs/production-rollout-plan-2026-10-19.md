@@ -1,5 +1,13 @@
 # YEROME v2 production rollout: verified baseline and gated sequence
 
+**Current checkpoint (2026-10-21):** The v2 application is already deployed,
+but the production database is still at the legacy schema. The refreshed
+backup, restore, migration rehearsal, and remaining deployment gates are in
+[`production-rollout-preflight-2026-10-21.md`](production-rollout-preflight-2026-10-21.md).
+The 2026-10-19 inventory below is retained as historical evidence; use the
+newer preflight for current counts and the activation sequence. No production
+database or Auth change is authorized before literal `DEPLOY V2` approval.
+
 Status: **backup and local migration rehearsal complete; deployment approval
 pending**. No production migration, Auth mutation, deployment, merge, or cleanup
 has occurred. The founder's latest production-first instruction
@@ -127,20 +135,13 @@ do not fabricate historical pauses or referral eligibility. The settlement
 policy approval table must remain empty, and no real transfer or settlement
 posting is authorized.
 
-For production, use a controlled maintenance window. The first migration
-restricts legacy RPCs, and the final security migration fails closed until the
-single Admin UUID is pinned. Keep the v1 website from serving incompatible
-operations during this interval. Confirm `ADMIN_EMAIL` and exact Supabase
-credential scope, use a fresh private password through Supabase Auth, pin the
-existing designated UUID, complete TOTP enrollment, and verify AAL2 and
-protected operations before reopening traffic. Do not create a second Admin
-or weaken MFA/RLS to recover from a failed login.
-
-Only after database/Auth verification should PR #1 be merged to `main` and
-the READY production deployment checked against the merged SHA. Then run
-synthetic browser/API/PostgREST role tests without enabling real settlements.
-Prepare a fresh exact Auth deletion manifest afterward; user cleanup remains
-separately approval-gated.
+For production, use the controlled maintenance sequence in the 2026-10-21
+preflight. The application is already on v2; the first migration restricts
+legacy RPCs, and the final security migration fails closed until the one
+existing Admin UUID is pinned. The Admin password was already reset by the
+owner and must not be changed again by bootstrap. Pin that UUID without
+creating an account, complete real TOTP enrollment and AAL2 verification,
+then test protected operations. Auth cleanup remains separately gated.
 
 ## Outstanding gates
 

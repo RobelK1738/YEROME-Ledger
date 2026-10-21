@@ -1,5 +1,12 @@
 # Single Admin security and Auth cleanup gate
 
+**2026-10-21 current sequence:** See
+[`production-rollout-preflight-2026-10-21.md`](production-rollout-preflight-2026-10-21.md).
+The designated Admin already exists and the owner has reset its password.
+The current bootstrap command only pins that existing UUID; no password or
+Auth-account creation is part of this rollout. The dated status and inventory
+below describe the earlier review checkpoint.
+
 Status: local implementation only. PR #1 remains Draft. The founder declined the
 quoted isolated Supabase branch and asked for local work only. No hosted
 migration, project setting, Auth mutation, user deletion, or production release
@@ -68,12 +75,12 @@ it does not prove the hosted Auth lifecycle, PostgREST or Vercel configuration.
    impact. Apply the migration while the app is in a controlled maintenance
    window. Until pinning, all app roles fail closed. Do not switch application
    code onto an unpinned database.
-3. Supply a **new**, strong password through an ephemeral protected bootstrap
-   environment variable; treat any previously shared password as exposed.
-   Set `EXPECTED_SUPABASE_PROJECT_REF`, `ADMIN_EMAIL`, and a nonsecret audit
-   reference. Run `npm run bootstrap:admin` once, then remove the temporary
-   password variable from the process environment. Repeating bootstrap with
-   the same pin must not create another account or change its password.
+3. Confirm the inventoried Admin UUID, exact project ref, and server-side
+   `ADMIN_EMAIL`. Set `EXPECTED_ADMIN_USER_ID`,
+   `EXPECTED_SUPABASE_PROJECT_REF`, and a nonsecret audit reference, then run
+   `npm run bootstrap:admin` once. It must pin only the existing confirmed
+   Admin and must not create an Auth user or change its password. Repeating it
+   with the same pin is idempotent. Do not supply a bootstrap password.
 4. Sign in as the designated Admin. Complete TOTP enrollment and challenge,
    then verify a fresh AAL2 session reaches the Admin portal. Preserve the
    authenticator recovery material in the founder's approved secure custody.
