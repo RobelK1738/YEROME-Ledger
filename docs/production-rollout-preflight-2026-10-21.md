@@ -114,6 +114,34 @@ exact manifest and authorization.
   configuration verdict. [Supabase documents the management Auth-config read
   endpoint](https://supabase.com/docs/reference/api/v1-get-auth-service-config).
 
+## Existing runtime evidence and optional preview check
+
+- The latest READY production deployment was created at 08:03:47 UTC. Six
+  `security.authorization_denied` audit rows for the designated Admin were
+  recorded in the production database from 08:04:06 to 08:04:33 UTC. In
+  `server/_lib/supabaseAdmin.js`, that event is written only after the server
+  has accepted the user's bearer token through `auth.getUser`, parsed its
+  claims, and attempted the v2 authorization RPC. The same server-side client
+  writes the audit row. Together with the owner's observed password-grant
+  HTTP 200 and session HTTP 403, this is strong **functional** evidence that
+  the deployed service credential reaches this Supabase project. It does not
+  establish the opaque key's exact value or the deployed `ADMIN_EMAIL` value:
+  the missing RPC causes denial before Admin-email equality can be observed.
+- No unauthenticated diagnostic endpoint will be added. If the founder
+  requires a pre-approval check of the opaque Vercel variables, propose a
+  **separately authorized preview-only build-time assertion**: run only when
+  `VERCEL_ENV=preview` and the Git branch is this patch branch; check the
+  project URL and canonical `ADMIN_EMAIL`, then use the server key for one
+  read-only Auth Admin user-list request against the exact project. Emit only
+  a pass/fail code, with no values, user records, UUIDs, tokens, or network
+  error bodies in logs. Do not add an HTTP route, write to Supabase, run in
+  production builds, or merge the diagnostic. After recording the result,
+  remove the temporary build hook/script in a follow-up patch and confirm a
+  clean preview build. The current preview environment shares these variable
+  entries with production, without branch overrides; verify that scope again
+  before running. This is a **proposal**, not an executed check or approval
+  to create a preview deployment.
+
 ## Controlled maintenance sequence after `DEPLOY V2`
 
 1. Confirm the reviewed patch commit and use its pin-only bootstrap from a
@@ -178,11 +206,11 @@ The CLI's `migration repair` and `db push` semantics are documented by
 - Review the patch commit and run its pin-only script from the trusted local
   checkout. The production server is already on v2; this script is not a
   deployed API route.
-- Deployed Vercel `SUPABASE_SERVICE_ROLE_KEY` and `ADMIN_EMAIL` values remain
-  unverified because Vercel's sensitive variables are non-readable after
-  creation. A local service key and the public production key passed separate
-  read-only project checks. Supabase Auth signup is verified disabled; project
-  TOTP enrollment/verification switches are not exposed by the public API.
+- The deployed Vercel service key has strong production runtime evidence for
+  functional scope, but its exact value and `ADMIN_EMAIL` remain non-readable.
+  A local service key and the public production key passed separate read-only
+  project checks. Supabase Auth signup is verified disabled; project TOTP
+  enrollment/verification switches are not exposed by the public API.
 - The production Supabase CLI passwordless connection and legacy migration
   baseline checks passed. Recheck them immediately before a maintenance write.
 - Final live inventory and backup freshness immediately before maintenance.
