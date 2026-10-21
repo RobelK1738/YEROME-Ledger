@@ -26,8 +26,8 @@ test('requires exact project and Admin identity before making one read-only requ
     assert.equal(key, validEnv.SUPABASE_SERVICE_ROLE_KEY);
     return { data: { users: [{ email: validEnv.ADMIN_EMAIL, app_metadata: { role: 'admin' } }] } };
   };
-  assert.equal(await verifyPreviewConfig({ ...validEnv, ADMIN_EMAIL: 'wrong@example.com' }, list), 'FAIL_CONFIG');
-  assert.equal(await verifyPreviewConfig({ ...validEnv, VITE_SUPABASE_URL: 'https://other.supabase.co' }, list), 'FAIL_CONFIG');
+  assert.equal(await verifyPreviewConfig({ ...validEnv, ADMIN_EMAIL: 'wrong@example.com' }, list), 'FAIL_ADMIN_EMAIL');
+  assert.equal(await verifyPreviewConfig({ ...validEnv, VITE_SUPABASE_URL: 'https://other.supabase.co' }, list), 'FAIL_PROJECT_SCOPE');
   assert.equal(calls, 0);
   assert.equal(await verifyPreviewConfig(validEnv, list), 'PASS');
   assert.equal(calls, 1);

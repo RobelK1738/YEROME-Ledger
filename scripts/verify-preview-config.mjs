@@ -15,10 +15,9 @@ export async function verifyPreviewConfig(env, listUsers) {
   const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
   if (url !== PROJECT_URL ||
       (env.SUPABASE_URL && env.VITE_SUPABASE_URL &&
-        env.SUPABASE_URL !== env.VITE_SUPABASE_URL) ||
-      env.ADMIN_EMAIL !== ADMIN_EMAIL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-    return 'FAIL_CONFIG';
-  }
+        env.SUPABASE_URL !== env.VITE_SUPABASE_URL)) return 'FAIL_PROJECT_SCOPE';
+  if (env.ADMIN_EMAIL !== ADMIN_EMAIL) return 'FAIL_ADMIN_EMAIL';
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return 'FAIL_SERVICE_KEY';
 
   try {
     const { data, error } = await listUsers(url, env.SUPABASE_SERVICE_ROLE_KEY);
