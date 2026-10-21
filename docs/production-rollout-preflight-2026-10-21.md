@@ -45,7 +45,7 @@ exact manifest and authorization.
   so hosted Auth service settings and external Storage object bytes are not
   included. Storage objects and Vault secrets were both zero at backup time.
 - Restored into a private local PostgreSQL 17 cluster with network listening
-  disabled. A 51-table Auth/public/Storage row-count and row-digest manifest
+  disabled. A 50-table Auth/public/Storage row-count and row-digest manifest
   matches production exactly. The stock Homebrew server lacks the managed
   `supabase_vault` extension, so ten managed Vault archive entries were
   excluded from this local restore; no Vault secret rows existed. The archive
@@ -76,6 +76,43 @@ exact manifest and authorization.
   session returned `admin_mfa_required`; a forged AAL2 claim over that AAL1
   session returned the same. The pin count was zero after rollback. This is
   **not** a hosted TOTP or login test.
+
+## Read-only refresh (2026-10-21, 08:43 UTC)
+
+- The live 50-table row-count/content-digest manifest still matches the
+  refreshed backup exactly. A prior report counted the psql `SET` status line
+  as a 51st table; no row or table was missing. Backup checksums still pass.
+  Current counts remain one Auth user and identity, zero sessions/factors, two
+  Owners, 12 jobs, 48 paychecks, 50 costs, 12 allocations and 97 audit rows.
+- The 339 public schema signatures and ten core seed signatures still match
+  the legacy baseline. The current Auth schema also matches all 523 semantic
+  signatures of the restored snapshot. Raw Auth catalog signatures initially
+  differed in 18 places because dump/restore compacts dropped-column ordinal
+  positions and identically truncated constraint names sort in different
+  orders; normalized definitions match. No migration-relevant Auth drift was
+  found. Since both schema and table content match the rehearsed snapshot,
+  the 12-migration local rehearsal remains representative.
+- Supabase CLI 2.121.0 connected to the exact production PostgreSQL endpoint
+  through `~/.pgpass` using a passwordless URI and a transaction-level
+  read-only option. `migration list` showed 21 local files and no remote
+  history. A following SQL check confirmed the history table was still absent.
+- The deployed browser bundle uses the exact project URL and an enabled
+  publishable key listed by the Supabase project. The **local** bootstrap
+  configuration also connected read-only with its service key and
+  returned the same sole designated Admin UUID as PostgreSQL. Vercel lists
+  production server keys and `ADMIN_EMAIL` as **sensitive** variables but does
+  not return their values, even with the plugin's decrypt request. Their
+  deployed values cannot be equated to the local values from this read-only
+  evidence. [Vercel documents sensitive variables as non-readable after
+  creation](https://vercel.com/docs/environment-variables/sensitive-environment-variables).
+  The unused `ADMIN_PASSWORD` variable remains configured.
+- Supabase's public Auth settings endpoint reports signup disabled and email
+  auto-confirm enabled. It does not report this project's TOTP enrollment or
+  verification switches. Those switches still need a trusted management
+  settings read with `auth:read` / `auth_config_read` permission or a controlled
+  runtime check; the zero MFA-factor count is an account state, not a
+  configuration verdict. [Supabase documents the management Auth-config read
+  endpoint](https://supabase.com/docs/reference/api/v1-get-auth-service-config).
 
 ## Controlled maintenance sequence after `DEPLOY V2`
 
@@ -141,9 +178,13 @@ The CLI's `migration repair` and `db push` semantics are documented by
 - Review the patch commit and run its pin-only script from the trusted local
   checkout. The production server is already on v2; this script is not a
   deployed API route.
-- Private verification of protected Vercel values, hosted Auth signup/MFA
-  settings and CLI passwordless connectivity; none was inferred from an env
-  variable **name**. The browser's public Supabase URL was verified.
+- Deployed Vercel `SUPABASE_SERVICE_ROLE_KEY` and `ADMIN_EMAIL` values remain
+  unverified because Vercel's sensitive variables are non-readable after
+  creation. A local service key and the public production key passed separate
+  read-only project checks. Supabase Auth signup is verified disabled; project
+  TOTP enrollment/verification switches are not exposed by the public API.
+- The production Supabase CLI passwordless connection and legacy migration
+  baseline checks passed. Recheck them immediately before a maintenance write.
 - Final live inventory and backup freshness immediately before maintenance.
   If production Auth, audit or financial rows changed, take and rehearse a
   newer protected backup.
