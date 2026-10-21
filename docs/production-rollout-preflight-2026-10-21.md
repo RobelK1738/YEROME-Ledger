@@ -233,7 +233,10 @@ The CLI's `migration repair` and `db push` semantics are documented by
   only after the approved migration and the founder's TOTP enrollment. A local
   shim does not establish that hosted behavior.
 
-Deployment authorization request: after reviewing this evidence and the
-remaining gates, reply **`DEPLOY V2`** to authorize the controlled database
-migration and single Admin activation sequence. This does **not** authorize
-account deletion, another password change, settlement or real transfers.
+**Deployment authorization is not requested yet.** Resolve and verify the
+Preview Admin-email mismatch, check hosted TOTP enrollment/verification
+settings, then refresh production inventory and backup at the maintenance
+checkpoint. Only after those gates pass should the founder be asked for the
+literal **`DEPLOY V2`** approval for the controlled database migration and
+single Admin activation. That approval would not authorize account deletion,
+another password change, settlement or real transfers.
