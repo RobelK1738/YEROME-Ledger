@@ -17,15 +17,17 @@ exact manifest and authorization.
   bundle points to Supabase project `uliolbtonhrmjwaeliyj`. The service-role
   key and protected `ADMIN_EMAIL` **values** were not read, so their exact
   project/email scope still needs a private check before mutation.
-- The authorized, one-time Preview build diagnostic on this patch branch ran
-  against the expected Supabase project URL but returned
-  `FAIL_ADMIN_EMAIL_MISMATCH`: the protected Preview `ADMIN_EMAIL` was present
-  and did not equal the canonical address. It stopped **before** the Auth
-  user-list request, so the Preview service key was not verified by this
-  diagnostic. The build emitted only fixed status codes, never values. The
-  existing Production deployment's protected values remain unverified; do
-  not infer them from the Preview outcome. Correct and privately verify the
-  Vercel Admin-email setting before requesting deployment authorization.
+- The founder explicitly authorized `robiemelaku@gmail.com`. The existing
+  sensitive Vercel `ADMIN_EMAIL` entry was updated to that value without
+  changing its Production/Preview targets or creating a branch override.
+  The new Preview build `dpl_7ekEEi2ho9ga2Vv1b9j41BUDg3Ph` on commit
+  `9bca70e` returned `PREVIEW_CONFIG_DIAGNOSTIC=PASS`. It checked the exact
+  project URL and Admin address and made one read-only Auth user-list call,
+  finding the expected sole Admin identity. The probe emitted only its fixed
+  result code; it was then removed. Clean Preview deployment
+  `dpl_A3tDTg97u6dxpVxpQTHCBhDWfZgh` on `0320ddf` is READY. The existing
+  Production deployment has **not** been rebuilt, so its protected runtime
+  values remain unverified and may reflect the prior snapshot.
 - Supabase project `uliolbtonhrmjwaeliyj` in organization
   `pqrjqbbnntlvcpyhuorm` is `ACTIVE_HEALTHY` (PostgreSQL 17.6.1). The
   password grant returning HTTP 200 followed by `/api/auth/session` HTTP 403
@@ -116,12 +118,13 @@ exact manifest and authorization.
   creation](https://vercel.com/docs/environment-variables/sensitive-environment-variables).
   The unused `ADMIN_PASSWORD` variable remains configured.
 - Supabase's public Auth settings endpoint reports signup disabled and email
-  auto-confirm enabled. It does not report this project's TOTP enrollment or
-  verification switches. Those switches still need a trusted management
-  settings read with `auth:read` / `auth_config_read` permission or a controlled
-  runtime check; the zero MFA-factor count is an account state, not a
-  configuration verdict. [Supabase documents the management Auth-config read
-  endpoint](https://supabase.com/docs/reference/api/v1-get-auth-service-config).
+  auto-confirm enabled. The founder separately verified the production project
+  in the Supabase dashboard: TOTP enabled, maximum ten factors per user, SMS
+  MFA disabled, and the AAL1 duration limit enabled with a 15-minute window.
+  This is founder-reported dashboard evidence; no screenshot was attached for
+  independent inspection. Actual Admin enrollment and AAL2 verification are
+  still required after rollout. The zero factor count is current account
+  state, not a hosted TOTP configuration failure.
 
 ## Existing runtime evidence and Preview diagnostic
 
@@ -151,15 +154,71 @@ exact manifest and authorization.
   Production with no branch override, but the values are non-readable and
   the existing Production deployment's runtime snapshot is distinct from a
   new Preview build. Its protected `ADMIN_EMAIL` value is **not verified**.
+- After the founder supplied the exact address, the same Vercel entry was
+  updated. A new temporary Preview diagnostic on commit `9bca70e` returned
+  `PASS`: exact project URL and email matched, and the one authorized Auth
+  Admin user-list request found exactly one Admin-role user with that email.
+  No records, identifiers, tokens, credentials or error bodies were logged.
+  Commit `0320ddf` removed the hook, script and test; its clean Preview build
+  is READY. Vercel confirms the latest Production deployment is still
+  `dpl_Fidb8WGMtyyBvErGzCo2hQJX28xy` from `main` `95287fe`.
+
+## Final refreshed backup and local readiness (2026-10-21, 13:07-13:17 UTC)
+
+- PostgreSQL 17.11 connected to the exact production host through the
+  existing `~/.pgpass` with TLS and a read-only session. Live inventory still
+  shows one canonical Admin Auth user and identity, zero sessions/factors,
+  two Owners, 12 jobs, 48 job paychecks, 50 costs, 12 allocations, 97 audit
+  rows, zero Storage objects/Vault secrets, no migration history and no v2
+  authorization RPC. The existing Admin password and UUID were not changed.
+- New logical backup outside Git:
+  `~/Library/Application Support/YEROME Ledger/production-backups/20261021T130757Z/`.
+  FileVault is On; the directory is `0700` and the dump, globals and checksum
+  files are `0600`. PostgreSQL 17 custom archive and globals inventory passed
+  `pg_restore -l` and SHA-256 verification. Archive SHA-256:
+  `f3ca9dbde88d5196f1304bc35fba0f6cfe91f31428b86b88d7220a846ff10fff`.
+  This is a same-device logical backup, not an independent off-device copy.
+- The archive restored into a private local PostgreSQL 17.11 cluster with
+  network listening disabled. Only ten managed Vault TOC entries were omitted
+  because stock PostgreSQL lacks `supabase_vault`; the source archive retains
+  them, and production Vault secret rows are zero. All **50** Auth/public/
+  Storage table count-and-content digests match a fresh read-only live
+  manifest. All **339** public schema, **523** semantic Auth schema and **10**
+  core seed signatures match. The live 50-table manifest is identical to the
+  preceding verified production snapshot. Hosted Auth configuration and
+  Storage object bytes are outside a logical dump; Storage objects are zero.
+- On this fresh restore, Supabase CLI 2.121.0 marked legacy `0001`-`0009`
+  applied **locally**, dry-ran exactly the ordered 12 v2 files, then applied
+  all 12 locally with `--skip-vault`. Local history ended at 21 rows. All 50
+  common historical table digests remained equal after migration; three
+  legacy reserve rows were archived, Gang Cut is exactly 10%, and the Admin
+  pin, settlement approvals and transfer postings are empty. No public table
+  lacks RLS, no `anon` role can execute a public security-definer function,
+  and no active reserve columns remain. The single-Admin pin and AAL1 gate
+  passed in a rolled-back **local** transaction; hosted MFA still awaits the
+  founder's enrollment.
+- The same CLI's read-only connection to the exact production host listed
+  21 local migration files and **zero** remote history entries. It did not
+  repair history or apply SQL in production.
+- A final read-only live manifest at 13:17:08 UTC still matched all 50
+  backed-up table digests. Migration history, the Admin pin and the v2
+  authorization RPC were still absent in production.
+- `npm test` passed 50/50; `npm run test:security` passed the disposable
+  PostgreSQL migration, role, RLS and seed assertions; `npm run build` passed.
+  No production SQL or Auth mutation occurred. The new backup's live manifest
+  should be rechecked at the actual maintenance start; refresh it again if
+  any backup-covered row changes before `DEPLOY V2` execution.
 
 ## Controlled maintenance sequence after `DEPLOY V2`
 
 1. Confirm the reviewed patch commit and use its pin-only bootstrap from a
    trusted local checkout; the deployed server is already on v2 and does not
-   invoke that script. Privately verify Vercel production `SUPABASE_SERVICE_ROLE_KEY`
-   belongs to project `uliolbtonhrmjwaeliyj` and `ADMIN_EMAIL` equals the
-   canonical address without printing either value. Confirm Supabase Auth
-   signup/MFA settings and the current project ref. Re-inventory Auth UUID,
+   invoke that script. The Preview probe verified the shared Vercel variable
+   entry, but the existing Production deployment predates the correction.
+   After an approved Production redeploy, verify its runtime authorization
+   through the existing authenticated `/api/auth/session` route; do not read
+   or log protected variables or add a diagnostic route. Confirm Supabase
+   Auth signup/MFA settings and the current project ref. Re-inventory Auth UUID,
    factors, sessions, Owner links, financial/audit counts, migration history,
    Storage objects and Vault secrets. If any backup-covered row changed since
    the snapshot, refresh and reverify the backup and replay the delta before
@@ -191,16 +250,25 @@ exact manifest and authorization.
    protected environment. It pins only this existing user and never creates
    or changes an Auth account or password. Confirm one pin and one Admin-role
    user. Do not supply `ADMIN_BOOTSTRAP_PASSWORD`.
-6. Have the founder sign in at the production URL using the already-reset
+6. After the database migrations and existing-UUID pin are verified, redeploy
+   the **existing `main` commit** to Production in the approved maintenance
+   window so it loads the corrected Vercel variable snapshot. Record the new
+   deployment ID and verify that it is READY and targets Production. Do not
+   merge PR #3 or reuse the temporary Preview diagnostic. [Vercel documents
+   that changed environment variables apply only to new deployments](https://vercel.com/docs/environment-variables/managing-environment-variables).
+7. Have the founder sign in at the production URL using the already-reset
    password. Before MFA, `/api/auth/session` must return HTTP 200 with
    `{ "role": null, "mfaRequired": true }`, with Admin financial endpoints
    denied. The founder completes TOTP enrollment and challenge in
    `/admin/mfa`; after Supabase upgrades the session to AAL2, the same session
    endpoint must return `{ "role": "admin", "mfaRequired": false }` and the
-   Admin portal must load. Never record the password, QR secret, TOTP code or
-   access token. [Supabase TOTP documentation](https://supabase.com/docs/guides/auth/auth-mfa/totp)
+   Admin portal must load. These authorized responses also establish that the
+   **new Production deployment** has the intended Admin-email configuration,
+   project scope, valid Admin pin and MFA gate, without exposing secrets.
+   Never record the password, QR secret, TOTP code or access token.
+   [Supabase TOTP documentation](https://supabase.com/docs/guides/auth/auth-mfa/totp)
    describes the AAL1-to-AAL2 enrollment flow.
-7. Verify distinct Owner/Admin RLS and PostgREST denials, API role DTOs,
+8. Verify distinct Owner/Admin RLS and PostgREST denials, API role DTOs,
    financial/audit row manifests, and absence of an enabled settlement policy.
    Confirm no real transfer ran. Retain the backup and incident evidence.
    If a gate fails, keep access restricted and use an audited forward repair;
@@ -216,27 +284,31 @@ The CLI's `migration repair` and `db push` semantics are documented by
 - Review the patch commit and run its pin-only script from the trusted local
   checkout. The production server is already on v2; this script is not a
   deployed API route.
-- The deployed Vercel service key has strong production runtime evidence for
-  functional scope, but its exact value and `ADMIN_EMAIL` remain non-readable.
-  Preview build verification **failed** because its `ADMIN_EMAIL` is present
-  but mismatched; no Preview service-key Auth request was made. The Vercel
-  setting needs a private correction and a fresh, authorized validation.
-  A local service key and the public production key passed separate read-only
-  project checks. Supabase Auth signup is verified disabled; project TOTP
-  enrollment/verification switches are not exposed by the public API.
-- The production Supabase CLI passwordless connection and legacy migration
-  baseline checks passed. Recheck them immediately before a maintenance write.
-- Final live inventory and backup freshness immediately before maintenance.
-  If production Auth, audit or financial rows changed, take and rehearse a
-  newer protected backup.
+- The corrected shared Vercel entry and Preview build passed the exact
+  project/Admin identity check with one read-only Auth request. The existing
+  Production deployment predates the correction. Its intended configuration
+  must be confirmed through the existing authenticated session flow after an
+  **approved** Production redeploy. No protected value can be read back.
+- The founder verified production TOTP settings in the Supabase dashboard.
+  Actual enrollment and AAL2 remain post-migration steps; no factor exists
+  yet. No dashboard screenshot was attached for independent inspection.
+- The PostgreSQL 17 passwordless connection, 50-table refreshed backup and
+  restore, 339/523/10 signature comparisons, nine-version legacy baseline,
+  12-migration local replay, and automated test/security/build suites passed.
+  Recheck the live row manifest and migration history at maintenance start;
+  if any backup-covered row changes, refresh and rehearse again.
 - Hosted GoTrue/TOTP, PostgREST and real Admin browser evidence is possible
   only after the approved migration and the founder's TOTP enrollment. A local
   shim does not establish that hosted behavior.
 
-**Deployment authorization is not requested yet.** Resolve and verify the
-Preview Admin-email mismatch, check hosted TOTP enrollment/verification
-settings, then refresh production inventory and backup at the maintenance
-checkpoint. Only after those gates pass should the founder be asked for the
-literal **`DEPLOY V2`** approval for the controlled database migration and
-single Admin activation. That approval would not authorize account deletion,
-another password change, settlement or real transfers.
+**Deployment authorization checkpoint:** The preparation gates above passed,
+with the same-device logical-backup/managed-Vault restore limitation recorded.
+The existing Production deployment remains on its older variable snapshot.
+The founder may reply with the literal **`DEPLOY V2`** to authorize the
+controlled migration-history baseline, all 12 production v2 migrations,
+pinning the existing Admin UUID, and a Production redeploy of the current
+`main` commit to load the corrected Vercel configuration, followed by the
+founder's TOTP enrollment and verification. Recheck backup freshness and
+inventory immediately before the first maintenance write. Approval does
+**not** authorize PR #3 merge, Auth-user deletion, password change,
+settlement, or real transfers.
