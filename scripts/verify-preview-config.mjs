@@ -16,7 +16,8 @@ export async function verifyPreviewConfig(env, listUsers) {
   if (url !== PROJECT_URL ||
       (env.SUPABASE_URL && env.VITE_SUPABASE_URL &&
         env.SUPABASE_URL !== env.VITE_SUPABASE_URL)) return 'FAIL_PROJECT_SCOPE';
-  if (env.ADMIN_EMAIL !== ADMIN_EMAIL) return 'FAIL_ADMIN_EMAIL';
+  if (!env.ADMIN_EMAIL) return 'FAIL_ADMIN_EMAIL_MISSING';
+  if (env.ADMIN_EMAIL !== ADMIN_EMAIL) return 'FAIL_ADMIN_EMAIL_MISMATCH';
   if (!env.SUPABASE_SERVICE_ROLE_KEY) return 'FAIL_SERVICE_KEY';
 
   try {
