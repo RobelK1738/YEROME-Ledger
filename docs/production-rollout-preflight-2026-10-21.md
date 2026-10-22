@@ -1,5 +1,7 @@
 # YEROME v2 production preflight — 2026-10-21
 
+**YAGNI update (2026-10-21):** Admin MFA is removed by founder decision. The previous 12-migration rehearsal below tested the MFA-enforcing version and **does not certify the revised password-only SQL**. Rerun the tests, restored-production migration rehearsal, single-Admin/Owner isolation checks, and backup freshness verification on the latest branch head before any production migration. Historical MFA references below are superseded by this notice and the updated activation sequence.
+
 **Authorization gate:** This is a preparation and local rehearsal record. No
 production migration-history repair, v2 migration, Admin pin, Auth-factor
 enrollment, account deletion, password change, transfer, or settlement was
@@ -256,18 +258,7 @@ exact manifest and authorization.
    deployment ID and verify that it is READY and targets Production. Do not
    merge PR #3 or reuse the temporary Preview diagnostic. [Vercel documents
    that changed environment variables apply only to new deployments](https://vercel.com/docs/environment-variables/managing-environment-variables).
-7. Have the founder sign in at the production URL using the already-reset
-   password. Before MFA, `/api/auth/session` must return HTTP 200 with
-   `{ "role": null, "mfaRequired": true }`, with Admin financial endpoints
-   denied. The founder completes TOTP enrollment and challenge in
-   `/admin/mfa`; after Supabase upgrades the session to AAL2, the same session
-   endpoint must return `{ "role": "admin", "mfaRequired": false }` and the
-   Admin portal must load. These authorized responses also establish that the
-   **new Production deployment** has the intended Admin-email configuration,
-   project scope, valid Admin pin and MFA gate, without exposing secrets.
-   Never record the password, QR secret, TOTP code or access token.
-   [Supabase TOTP documentation](https://supabase.com/docs/guides/auth/auth-mfa/totp)
-   describes the AAL1-to-AAL2 enrollment flow.
+7. Have the founder sign in at the Production URL using the existing password. A normal live password-authenticated Admin session must receive HTTP 200 with `{ "role": "admin" }` from `/api/auth/session` and access the Admin dashboard **without MFA**. Confirm a second Admin, an unpinned UUID, expired/revoked sessions and Owners are denied. Do not record a password, bearer token or secret. Successful authorization on a new Production deployment also confirms its corrected `ADMIN_EMAIL` and service-key scope without exposing their values.
 8. Verify distinct Owner/Admin RLS and PostgREST denials, API role DTOs,
    financial/audit row manifests, and absence of an enabled settlement policy.
    Confirm no real transfer ran. Retain the backup and incident evidence.
@@ -301,14 +292,13 @@ The CLI's `migration repair` and `db push` semantics are documented by
   only after the approved migration and the founder's TOTP enrollment. A local
   shim does not establish that hosted behavior.
 
-**Deployment authorization checkpoint:** The preparation gates above passed,
+**Deployment authorization checkpoint:** The previous MFA-enabled preparation passed, but the updated password-only SQL and tests require a fresh local rehearsal before deployment. Once that is complete,
 with the same-device logical-backup/managed-Vault restore limitation recorded.
 The existing Production deployment remains on its older variable snapshot.
 The founder may reply with the literal **`DEPLOY V2`** to authorize the
 controlled migration-history baseline, all 12 production v2 migrations,
 pinning the existing Admin UUID, and a Production redeploy of the current
-`main` commit to load the corrected Vercel configuration, followed by the
-founder's TOTP enrollment and verification. Recheck backup freshness and
+`main` commit to load the corrected Vercel configuration, followed by normal password-only Admin login and authorization checks. Recheck backup freshness and
 inventory immediately before the first maintenance write. Approval does
 **not** authorize PR #3 merge, Auth-user deletion, password change,
 settlement, or real transfers.

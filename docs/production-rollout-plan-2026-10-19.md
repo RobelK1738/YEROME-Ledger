@@ -1,5 +1,7 @@
 # YEROME v2 production rollout: verified baseline and gated sequence
 
+**YAGNI override:** Admin sign-in uses email and password only. Disregard previous TOTP/AAL2 rollout steps. The changed single-Admin migration requires a fresh restored-data rehearsal before production deployment.
+
 **Current checkpoint (2026-10-21):** The v2 application is already deployed,
 but the production database is still at the legacy schema. The refreshed
 backup, restore, migration rehearsal, and remaining deployment gates are in
@@ -140,8 +142,7 @@ preflight. The application is already on v2; the first migration restricts
 legacy RPCs, and the final security migration fails closed until the one
 existing Admin UUID is pinned. The Admin password was already reset by the
 owner and must not be changed again by bootstrap. Pin that UUID without
-creating an account, complete real TOTP enrollment and AAL2 verification,
-then test protected operations. Auth cleanup remains separately gated.
+creating an account, then verify password-only Admin sign-in and protected operations. Auth cleanup remains separately gated.
 
 ## Outstanding gates
 
