@@ -1,5 +1,7 @@
 # YEROME v2 production preflight — 2026-10-21
 
+**Hosted Auth settings for password-only sign-in (required):** In Supabase Authentication → Multi-Factor, set TOTP (App Authenticator) to **Disabled** and turn **OFF** “Limit duration of AAL1 sessions.” The latter was previously ON and would terminate a normal password-only Admin session after 15 minutes unless MFA was completed. Leave SMS MFA disabled. The application still caps and validates live sessions through the database. Verify both switches in the dashboard before an approved migration, and do not weaken the Admin UUID pin or RLS.
+
 **YAGNI update (2026-10-21):** Admin MFA is removed by founder decision. The previous 12-migration rehearsal below tested the MFA-enforcing version and **does not certify the revised password-only SQL**. Rerun the tests, restored-production migration rehearsal, single-Admin/Owner isolation checks, and backup freshness verification on the latest branch head before any production migration. Historical MFA references below are superseded by this notice and the updated activation sequence.
 
 **Authorization gate:** This is a preparation and local rehearsal record. No
