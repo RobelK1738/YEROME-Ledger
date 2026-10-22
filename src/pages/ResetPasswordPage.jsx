@@ -4,7 +4,7 @@ import { Field, TextInput } from '../components/ui/Field.jsx';
 import { Logo } from '../components/ui/Logo.jsx';
 import { APP_NAME } from '../lib/constants.js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.js';
-import { completeAdminRecovery, isStrongAdminPassword,
+import { completeAdminRecovery, hasPasswordInput,
   requestAdminRecovery } from '../lib/auth/adminRecovery.js';
 
 export default function ResetPasswordPage({ callback }) {
@@ -38,8 +38,8 @@ export default function ResetPasswordPage({ callback }) {
   const savePassword = async (event) => {
     event.preventDefault();
     setMessage('');
-    if (!isStrongAdminPassword(password)) {
-      setMessage('Use at least 20 characters with uppercase, lowercase, a number, and a symbol.');
+    if (!hasPasswordInput(password)) {
+      setMessage('Enter a new password.');
       return;
     }
     if (password !== confirmation) {
@@ -53,6 +53,8 @@ export default function ResetPasswordPage({ callback }) {
     setBusy(false);
     if (result.kind === 'complete') {
       setStatus(result.revoked ? 'complete' : 'complete-revoke');
+    } else if (result.kind === 'password-rejected') {
+      setMessage('The password was not accepted. Try another password.');
     } else {
       setStatus(result.kind);
     }
@@ -92,12 +94,12 @@ export default function ResetPasswordPage({ callback }) {
         <Field label="New password" htmlFor="new-password" required>
           <TextInput id="new-password" type="password" autoComplete="new-password"
             value={password} onChange={(event) => setPassword(event.target.value)}
-            minLength={20} required />
+            required />
         </Field>
         <Field label="Confirm new password" htmlFor="confirm-password" required>
           <TextInput id="confirm-password" type="password" autoComplete="new-password"
             value={confirmation} onChange={(event) => setConfirmation(event.target.value)}
-            minLength={20} required />
+            required />
         </Field>
         {message ? <p className="form-error" role="alert">{message}</p> : null}
         <button className="btn btn--primary btn--block" type="submit" disabled={busy || !isSupabaseConfigured}>

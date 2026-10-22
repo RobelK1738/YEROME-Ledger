@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ADMIN_EMAIL, ADMIN_RECOVERY_REDIRECT_URL, captureAdminRecoveryCallback,
-  completeAdminRecovery, isStrongAdminPassword, requestAdminRecovery,
+  completeAdminRecovery, hasPasswordInput, requestAdminRecovery,
 } from '../src/lib/auth/adminRecovery.js';
+import { validatePassword } from '../server/_lib/supabaseAdmin.js';
 
 function callback(url) {
   const parsed = new URL(url);
@@ -104,10 +105,10 @@ test('Admin request uses exact production redirect and never requests Owner reco
   assert.deepEqual(requests, [[ADMIN_EMAIL, { redirectTo: ADMIN_RECOVERY_REDIRECT_URL }]]);
 });
 
-test('password update requires recovery authorization and a strong password, then revokes sessions', async () => {
-  const password = 'A-long-unique-secret-42!';
-  assert.ok(isStrongAdminPassword(password));
-  assert.equal(isStrongAdminPassword('shortPassword1!'), false);
+test('password update requires recovery authorization and nonempty input, then revokes sessions', async () => {
+  const password = 'simple';
+  assert.ok(hasPasswordInput(password));
+  assert.equal(hasPasswordInput(''), false);
   const calls = [];
   const auth = {
     async getUser() { calls.push('getUser'); return { data: { user: admin }, error: null }; },
@@ -115,10 +116,35 @@ test('password update requires recovery authorization and a strong password, the
     async signOut(options) { calls.push(['signOut', options]); return { error: null }; },
   };
   assert.deepEqual(await completeAdminRecovery(auth, password, false), { kind: 'invalid' });
-  assert.deepEqual(await completeAdminRecovery(auth, 'weak', true), { kind: 'invalid' });
+  assert.deepEqual(await completeAdminRecovery(auth, '', true), { kind: 'invalid' });
   assert.deepEqual(calls, []);
   assert.deepEqual(await completeAdminRecovery(auth, password, true), { kind: 'complete', revoked: true });
   assert.deepEqual(calls, ['getUser', ['updateUser', { password }], ['signOut', { scope: 'global' }]]);
+});
+
+test('Owner password validation leaves password policy to Supabase Auth', () => {
+  assert.equal(validatePassword('simple'), null);
+  assert.equal(validatePassword(''), 'Password is required.');
+  assert.equal(validatePassword(undefined), 'Password is required.');
+});
+
+test('Auth password rejection does not report a broken recovery link or revoke sessions', async () => {
+  const calls = [];
+  const auth = {
+    async getUser() { calls.push('getUser'); return { data: { user: admin }, error: null }; },
+    async updateUser(details) { calls.push(['updateUser', details]); return { error: { code: 'weak_password' } }; },
+    async signOut() { calls.push('signOut'); return { error: null }; },
+  };
+  assert.deepEqual(await completeAdminRecovery(auth, 'simple', true), { kind: 'password-rejected' });
+  assert.deepEqual(calls, ['getUser', ['updateUser', { password: 'simple' }]]);
+});
+
+test('recovery session rejected during password update is treated as invalid', async () => {
+  const auth = {
+    async getUser() { return { data: { user: admin }, error: null }; },
+    async updateUser() { return { error: { status: 401 } }; },
+  };
+  assert.deepEqual(await completeAdminRecovery(auth, 'simple', true), { kind: 'invalid' });
 });
 
 test('failed global revocation is reported and local session is discarded', async () => {

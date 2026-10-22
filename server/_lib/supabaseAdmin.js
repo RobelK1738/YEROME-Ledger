@@ -127,8 +127,8 @@ export function validateUsername(username) {
 }
 
 export function validatePassword(password) {
-  if (!password || typeof password !== 'string' || password.length < 8) {
-    return 'Password must be at least 8 characters.';
+  if (typeof password !== 'string' || password.length === 0) {
+    return 'Password is required.';
   }
   return null;
 }
