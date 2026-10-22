@@ -84,7 +84,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.log(result.pinned ? 'Existing designated Admin UUID verified and pinned.' :
       'Existing designated Admin UUID was already pinned.');
     console.log('No Auth user was created and no password was changed.');
-    console.log('Complete TOTP enrollment and a fresh AAL2 login before release.');
+    console.log('Verify a fresh password login to the pinned Admin account before release.');
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

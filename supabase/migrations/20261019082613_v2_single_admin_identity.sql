@@ -1,4 +1,4 @@
--- No live identity is seeded. Pin explicitly after inventory and password rotation.
+-- No live identity is seeded. Pin only the previously inventoried Admin UUID.
 create table private.admin_identity (
   singleton boolean primary key default true check (singleton),
   auth_user_id uuid not null unique references auth.users(id) on delete restrict,
@@ -16,11 +16,11 @@ alter table private.session_revocations enable row level security;
 revoke all on private.admin_identity,private.session_revocations from public,anon,authenticated,service_role;
 
 -- This internal helper is the single backend/database authorization model.
--- Read live identity, session, factor and revocation state; a stale JWT alone
+-- Read live identity, session and revocation state; a stale JWT alone
 -- can never retain privilege. Only the service RPC and no-argument RLS wrappers
 -- below can call it, not a browser supplying another user's identity.
 create function private.authorize_session(p_user uuid,p_session uuid,p_iat bigint,
-  p_aal text,p_role text,p_admin_email text)
+  p_role text,p_admin_email text)
 returns text language plpgsql stable security definer set search_path = '' as $$
 declare u auth.users; s auth.sessions; pin private.admin_identity; cutoff timestamptz;
 begin
@@ -39,25 +39,22 @@ begin
     select * into pin from private.admin_identity;
     if pin.auth_user_id <> p_user or lower(u.email) is distinct from pin.email
        or p_admin_email is distinct from pin.email then return null; end if;
-    if p_aal = 'aal2' and s.aal::text = 'aal2' and exists (
-        select 1 from auth.mfa_factors f where f.id = s.factor_id and f.user_id = p_user
-          and f.status::text = 'verified') then return 'admin'; end if;
-    return 'admin_mfa_required';
+    return 'admin';
   end if;
   if p_role = 'owner' and exists (select 1 from public.owners where auth_user_id = p_user and status = 'active')
      and not exists (select 1 from private.admin_identity where auth_user_id = p_user) then return 'owner'; end if;
   return null;
 end;
 $$;
-revoke execute on function private.authorize_session(uuid,uuid,bigint,text,text,text) from public,anon,authenticated;
-grant execute on function private.authorize_session(uuid,uuid,bigint,text,text,text) to service_role;
+revoke execute on function private.authorize_session(uuid,uuid,bigint,text,text) from public,anon,authenticated;
+grant execute on function private.authorize_session(uuid,uuid,bigint,text,text) to service_role;
 
 create function private.current_authorization() returns text
 language plpgsql stable security definer set search_path = '' as $$
 declare claims jsonb := auth.jwt();
 begin
   return private.authorize_session(auth.uid(),(claims->>'session_id')::uuid,
-    (claims->>'iat')::bigint,claims->>'aal',claims->'app_metadata'->>'role',
+    (claims->>'iat')::bigint,claims->'app_metadata'->>'role',
     (select email from private.admin_identity where singleton));
 exception when invalid_text_representation or numeric_value_out_of_range then return null;
 end;
@@ -92,12 +89,12 @@ language sql stable security definer set search_path = '' as $$
 $$;
 
 create function public.v2_authorize_session(p_user uuid,p_session uuid,p_iat bigint,
-  p_aal text,p_role text,p_admin_email text)
+  p_role text,p_admin_email text)
 returns text language sql stable security invoker set search_path = '' as $$
-  select private.authorize_session(p_user,p_session,p_iat,p_aal,p_role,p_admin_email);
+  select private.authorize_session(p_user,p_session,p_iat,p_role,p_admin_email);
 $$;
-revoke execute on function public.v2_authorize_session(uuid,uuid,bigint,text,text,text) from public,anon,authenticated;
-grant execute on function public.v2_authorize_session(uuid,uuid,bigint,text,text,text) to service_role;
+revoke execute on function public.v2_authorize_session(uuid,uuid,bigint,text,text) from public,anon,authenticated;
+grant execute on function public.v2_authorize_session(uuid,uuid,bigint,text,text) to service_role;
 
 create function private.pin_admin(p_user uuid,p_reference text) returns uuid
 language plpgsql security definer set search_path = '' as $$

@@ -81,7 +81,7 @@ export default function ResetPasswordPage({ callback }) {
         If this is the designated Admin account, a fresh recovery email will arrive shortly.
       </p> : null}
       {status === 'complete' || status === 'complete-revoke' ? <div role="status">
-        <p>Your password was updated. Sign in again and complete Admin MFA.</p>
+        <p>Your password was updated. Sign in again with your new password.</p>
         {status === 'complete-revoke' ? <p className="form-error" role="alert">
           Session revocation could not be confirmed. Ask the project owner to revoke this Admin account’s sessions in Supabase Auth.
         </p> : null}

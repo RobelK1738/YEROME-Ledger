@@ -6,11 +6,10 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { Loading } from './ui/Loading.jsx';
 
 export function RequireRole({ role, children }) {
-  const { loading, isAuthenticated, role: currentRole, mfaRequired } = useAuth();
+  const { loading, isAuthenticated, role: currentRole } = useAuth();
   const location = useLocation();
 
   if (loading) return <Loading full label="Checking your session…" />;
-  if (mfaRequired) return <Navigate to="/admin/mfa" replace />;
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }

@@ -51,14 +51,13 @@ export async function authorizeRequest(req) {
     const { adminEmail } = getEnv();
     const { data: role, error: authError } = await db.rpc('v2_authorize_session', {
       p_user: user.id, p_session: claims.session_id || null, p_iat: claims.iat,
-      p_aal: claims.aal || null, p_role: claims.app_metadata?.role || null,
+      p_role: claims.app_metadata?.role || null,
       p_admin_email: adminEmail || null,
     });
     const adminIdentityMatches = adminEmail === 'robiemelaku@gmail.com' &&
       user.email?.toLowerCase() === adminEmail && user.app_metadata?.role === 'admin';
-    if (authError || !['admin', 'admin_mfa_required', 'owner'].includes(role) ||
-        (role.startsWith('admin') && !adminIdentityMatches) ||
-        (role === 'admin' && claims.aal !== 'aal2') ||
+    if (authError || !['admin', 'owner'].includes(role) ||
+        (role === 'admin' && !adminIdentityMatches) ||
         (role === 'owner' && user.app_metadata?.role !== 'owner')) {
       await serverAudit(db, { actorUserId: user.id, action: 'security.authorization_denied',
         entityType: 'auth_user', entityId: user.id, metadata: {} });
@@ -70,7 +69,7 @@ export async function authorizeRequest(req) {
   }
 }
 
-/** Every privileged route shares the pinned UUID, current session and MFA gate. */
+/** Every privileged route requires the pinned Admin UUID and a live session. */
 export async function requireAdmin(req) {
   const auth = await authorizeRequest(req);
   if (!auth.ok) return auth;

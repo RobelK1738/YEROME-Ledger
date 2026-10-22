@@ -10,14 +10,11 @@ update auth.users set email = case id
   raw_app_meta_data = jsonb_build_object('role',case when id =
     '40000000-0000-0000-0000-000000000004' then 'admin' else 'owner' end),
   email_confirmed_at = now();
-insert into auth.mfa_factors(id,user_id,status) values
- ('44444444-4444-4444-4444-444444444444','40000000-0000-0000-0000-000000000004','verified');
-insert into auth.sessions(id,user_id,aal,factor_id) values
- ('11111111-1111-1111-1111-111111111111','10000000-0000-0000-0000-000000000001','aal1',null),
- ('22222222-2222-2222-2222-222222222222','20000000-0000-0000-0000-000000000002','aal1',null),
- ('33333333-3333-3333-3333-333333333333','30000000-0000-0000-0000-000000000003','aal1',null),
- ('44444444-0000-0000-0000-000000000004','40000000-0000-0000-0000-000000000004','aal2',
-   '44444444-4444-4444-4444-444444444444');
+insert into auth.sessions(id,user_id) values
+ ('11111111-1111-1111-1111-111111111111','10000000-0000-0000-0000-000000000001'),
+ ('22222222-2222-2222-2222-222222222222','20000000-0000-0000-0000-000000000002'),
+ ('33333333-3333-3333-3333-333333333333','30000000-0000-0000-0000-000000000003'),
+ ('44444444-0000-0000-0000-000000000004','40000000-0000-0000-0000-000000000004');
 select public.v2_pin_admin('40000000-0000-0000-0000-000000000004','synthetic-test-bootstrap');
 
 insert into public.owners (id, auth_user_id, username, display_name) values
@@ -745,7 +742,7 @@ do $$ declare r record; begin
   end if;
 end $$;
 
-select set_config('request.jwt.claims',jsonb_build_object('sub','40000000-0000-0000-0000-000000000004','session_id','44444444-0000-0000-0000-000000000004','iat',extract(epoch from now())::bigint,'aal','aal2','app_metadata',jsonb_build_object('role','admin'))::text,false);
+select set_config('request.jwt.claims',jsonb_build_object('sub','40000000-0000-0000-0000-000000000004','session_id','44444444-0000-0000-0000-000000000004','iat',extract(epoch from now())::bigint,'aal','aal1','app_metadata',jsonb_build_object('role','admin'))::text,false);
 do $$ declare r record; begin
   if (select count(*) from public.jobs) <> 5 then raise exception 'Admin job access failed'; end if;
   select * into r from public.owner_earned_commissions('cccccccc-cccc-cccc-cccc-cccccccccccc', 2026);
