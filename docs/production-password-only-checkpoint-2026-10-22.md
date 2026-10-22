@@ -1,0 +1,35 @@
+# YEROME v2 password-only release checkpoint — 2026-10-22
+
+**State: preparation only.** Do not run another Production migration, merge PR #3, or deploy the password-only application until the founder approves this revised sequence. The earlier `DEPLOY V2` authorization was executed for the previous MFA-gated release and does not approve this changed release.
+
+## Actual Production state
+
+- Supabase project `uliolbtonhrmjwaeliyj` already has **21 migration-history entries**: verified legacy `0001`–`0009` and the twelve *earlier MFA-gated* v2 migrations. It has one canonical Admin pin for the existing designated Auth UUID, one Auth user, 2 Owners, 12 jobs, 48 paychecks, 50 costs, and 98 audit entries (97 historical plus the Admin-pin event). The password and Auth UUID were not changed. No settlement policy is enabled; no settlement or transfer was posted.
+- Vercel Production deployment `dpl_7493pwRBPFNzNoUMBoiqncwjp3sg` is READY on the existing `main` commit `95287feaa074a0c3e5450861a82a76745a173ed2`. It contains the former MFA-dependent frontend and six-argument authorization request. Do **not** redeploy this commit after changing the RPC.
+- PR #3 remains Draft and unmerged. Its password-only application calls the **five-argument** `v2_authorize_session` RPC. Editing migration `20261019082613` in Git does not rerun it in Production because its version is already marked applied. A new forward migration, `20261022012000_v2_password_only_admin_forward.sql`, is required.
+- Founder intends to disable hosted TOTP and the AAL1 verification deadline. These dashboard switches are **not yet independently verified**. Actual hosted password login and Admin dashboard verification remain post-release checks.
+
+## Protected backup and local evidence
+
+- The fresh, read-only Production dump and globals are in `~/Library/Application Support/YEROME Ledger/production-backups/20261022T011608Z-password-only-rehearsal/`, outside Git, with directory `0700` and files `0600`. SHA-256 of `postgres-full.dump`: `7102150d9abbfc8b645892987d353cf3c3471af4cce511c968fe7acc0b02779c`. Both archive and globals checksums passed. FileVault is enabled. The earlier pre-v2 snapshot remains at `20261021T130757Z`.
+- The **pre-v2** snapshot was restored into a new socket-only PostgreSQL 17 cluster. All 50 Auth/public/Storage row digests matched its Production baseline. All twelve revised v2 migrations replayed in documented order, 12/12 passed. The 50 common historical row digests then matched the earlier v2 rehearsal. The new forward migration also succeeded on top of those twelve.
+- The **current v2** Production snapshot was restored into a separate new socket-only cluster. Its 50 common table digests matched a read-only live Production manifest. The forward migration succeeded there; all 50 digests were unchanged; the pinned UUID remained one; the five-argument RPC existed and the six-argument RPC was gone. A local transaction proved a synthetic live AAL1 session for the restored pinned Admin is accepted, Admin RLS can read the two existing Owners, and unknown or revoked sessions are denied. The separate pre-v2 rehearsal also denied unpinned identities, stale sessions, wrong role, and wrong Admin email. Synthetic sessions do **not** prove a hosted password exchange.
+- The stock local PostgreSQL restore excluded only ten managed `supabase_vault` archive entries, as in the previously accepted recovery limitation. Production had no Vault secrets or Storage objects at the prior inventory. Recheck immediately before an approved write. This is a same-device logical backup, not independent hosted disaster recovery.
+- `npm test`: 50/50 passed; `npm run test:security`: disposable PostgreSQL migrations, RLS/role assertions and seed passed; `npm run build`: passed. Rerun after final diff. A read-only Production CLI dry-run listed **only** `20261022012000_v2_password_only_admin_forward.sql`, not the twelve already-applied versions.
+
+## Approval gates
+
+1. Founder confirms in the production Supabase dashboard that TOTP is disabled and the AAL1 session-duration limit is off. Keep SMS disabled. No Admin factor enrollment is required or permitted by this plan.
+2. Review the final PR #3 SHA and the forward migration. Confirm the deployed Production project, corrected server `ADMIN_EMAIL` configuration, one pinned Admin UUID, one Auth Admin user, 21 existing migration versions, no enabled settlement policy, and no unexpected historical row changes. Refresh the protected backup if the inventory has changed.
+3. Re-run the password-only Node, PostgreSQL security and build checks. Run a **read-only** CLI migration dry-run against the exact production project; it must list only the forward migration. Record the resulting backup checksum and review the same-device/managed-Vault limitation.
+4. Obtain a new explicit deployment authorization that covers the **forward migration, merge of PR #3, and deployment of its matching `main` commit**. The old authorization and the old nine-plus-twelve sequence must not be reused.
+
+## Controlled release sequence after new approval
+
+1. Hold application traffic during the RPC/application mismatch. Recheck all gates above immediately before the first write. Stop for any unexpected difference.
+2. Apply **only** `20261022012000_v2_password_only_admin_forward.sql` to project `uliolbtonhrmjwaeliyj` using the reviewed Supabase CLI process. Its transaction adds the five-argument authorization model and removes the obsolete six-argument RPC. Confirm exactly **22** migration-history entries, one unchanged Admin pin, unchanged Auth credentials and historical row digests, service-role-only RPC execution, and no settlement/transfer rows. Never rerun legacy `0001`–`0009` or the earlier twelve v2 SQL files.
+3. Merge the reviewed PR #3 into `main` **only under the new approval** and deploy the resulting exact `main` SHA with the corrected Production environment. Do not promote a Preview build or redeploy `95287fea…`. Confirm Vercel READY, Production alias and deployment SHA before reopening traffic.
+4. Founder signs in with the existing password. Without sharing a password or token, verify `/api/auth/session` returns HTTP 200 `{ "role": "admin" }` for that live AAL1 session and the Admin dashboard loads. Verify invalid, unpinned, expired and revoked sessions cannot access Admin data; Owner isolation and role-specific DTOs remain enforced. Check Auth/financial/audit counts and that no settlement policy or transfer is enabled.
+5. If migration or deployment fails, keep traffic held and use an audited forward repair. Do not fall back to the old MFA-dependent app against the changed RPC or change the Admin password, Auth users, financial history or money state.
+
+**Outstanding founder approval:** the revised forward-migration and PR #3 merge/deploy checkpoint. No Production database or deployment change is made in this preparation step.

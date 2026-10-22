@@ -17,6 +17,9 @@ begin
     execute format('select count(*) from public.%I',t) into n;
     if n <> 0 then raise exception 'Second Admin token can read %',t; end if;
   end loop;
+  if to_regprocedure('public.v2_authorize_session(uuid,uuid,bigint,text,text,text)') is not null
+     or to_regprocedure('private.authorize_session(uuid,uuid,bigint,text,text,text)') is not null then
+    raise exception 'Obsolete six-argument Admin authorization remains'; end if;
   if has_function_privilege('authenticated','public.v2_authorize_session(uuid,uuid,bigint,text,text)','EXECUTE')
      or has_function_privilege('authenticated','public.v2_pin_admin(uuid,text)','EXECUTE')
      or has_function_privilege('authenticated','public.v2_admin_pin_status()','EXECUTE') then

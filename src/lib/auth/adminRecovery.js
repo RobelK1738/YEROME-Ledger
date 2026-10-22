@@ -124,7 +124,7 @@ export async function completeAdminRecovery(auth, password, authorized) {
     if (error || !isAdminUser(data?.user)) return { kind: errorKind(error) };
     const update = await auth.updateUser({ password });
     if (update.error) return { kind: errorKind(update.error) };
-    // Global sign-out revokes refresh tokens; Admin must sign in and pass MFA again.
+    // Global sign-out revokes refresh tokens; Admin must sign in again.
     try {
       const signOut = await auth.signOut({ scope: 'global' });
       if (signOut.error) throw signOut.error;

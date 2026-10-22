@@ -19,7 +19,7 @@ test('Admin routes select historic terms; owners cannot access transfer evidence
   ];
   const jwt = (kind) => `header.${Buffer.from(JSON.stringify({ sub: kind === 'admin' ? 'admin-id' : 'owner-id',
     session_id: '11111111-1111-1111-1111-111111111111', iat: Math.floor(Date.now() / 1000),
-    aal: kind === 'admin' ? 'aal2' : 'aal1', app_metadata: { role: kind === 'admin' ? 'admin' : 'owner' },
+    aal: 'aal1', app_metadata: { role: kind === 'admin' ? 'admin' : 'owner' },
   })).toString('base64url')}.synthetic`;
   t.mock.method(globalThis, 'fetch', async (input, init) => {
     const url = new URL(input);

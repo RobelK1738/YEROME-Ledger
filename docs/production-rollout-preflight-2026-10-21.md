@@ -1,6 +1,8 @@
 # YEROME v2 production preflight — 2026-10-21
 
-**Hosted Auth settings for password-only sign-in (required):** In Supabase Authentication → Multi-Factor, set TOTP (App Authenticator) to **Disabled** and turn **OFF** “Limit duration of AAL1 sessions.” The latter was previously ON and would terminate a normal password-only Admin session after 15 minutes unless MFA was completed. Leave SMS MFA disabled. The application still caps and validates live sessions through the database. Verify both switches in the dashboard before an approved migration, and do not weaken the Admin UUID pin or RLS.
+**Superseded operational checkpoint:** Production has since applied the earlier twelve v2 migrations, pinned the existing Admin UUID, and redeployed the old `main` application. Do not execute the nine-plus-twelve migration sequence below. The current status, fresh rehearsal, and only authorized future sequence are in [the 2026-10-22 password-only checkpoint](production-password-only-checkpoint-2026-10-22.md). This file retains the earlier preflight as historical evidence.
+
+**Hosted Auth settings for password-only sign-in (required before the next release):** In Supabase Authentication → Multi-Factor, set TOTP (App Authenticator) to **Disabled** and turn **OFF** “Limit duration of AAL1 sessions.” Leave SMS MFA disabled. These settings are awaiting founder confirmation. The application still caps and validates live sessions through the database. Do not weaken the Admin UUID pin or RLS.
 
 **YAGNI update (2026-10-21):** Admin MFA is removed by founder decision. The previous 12-migration rehearsal below tested the MFA-enforcing version and **does not certify the revised password-only SQL**. Rerun the tests, restored-production migration rehearsal, single-Admin/Owner isolation checks, and backup freshness verification on the latest branch head before any production migration. Historical MFA references below are superseded by this notice and the updated activation sequence.
 
@@ -213,80 +215,6 @@ exact manifest and authorization.
   should be rechecked at the actual maintenance start; refresh it again if
   any backup-covered row changes before `DEPLOY V2` execution.
 
-## Controlled maintenance sequence after `DEPLOY V2`
+## Current release sequence
 
-1. Confirm the reviewed patch commit and use its pin-only bootstrap from a
-   trusted local checkout; the deployed server is already on v2 and does not
-   invoke that script. The Preview probe verified the shared Vercel variable
-   entry, but the existing Production deployment predates the correction.
-   After an approved Production redeploy, verify its runtime authorization
-   through the existing authenticated `/api/auth/session` route; do not read
-   or log protected variables or add a diagnostic route. Confirm Supabase
-   Auth signup/MFA settings and the current project ref. Re-inventory Auth UUID,
-   factors, sessions, Owner links, financial/audit counts, migration history,
-   Storage objects and Vault secrets. If any backup-covered row changed since
-   the snapshot, refresh and reverify the backup and replay the delta before
-   proceeding. Keep a maintenance record and hold user traffic while schema
-   and app are incompatible.
-2. Confirm `~/.pgpass` based PostgreSQL 17 connectivity and a **read-only**
-   Supabase CLI connection to the exact project using a passwordless URI.
-   Do not put a database password in a CLI argument, log, Git file, or chat.
-   Stop if the CLI cannot use the protected connection mechanism. Recompare
-   the 339 legacy schema signatures and core seed fields. The five editable
-   template notes are expected drift; any other new drift requires review.
-3. Mark only legacy versions `0001` through `0009` as applied with
-   `supabase migration repair --status applied --db-url "$YEROME_DB_URL" 0001 0002 0003 0004 0005 0006 0007 0008 0009`.
-   This changes migration **history**, not the legacy application objects.
-   Confirm history has exactly those nine versions before `db push`; never use
-   `--include-all`, `--include-seed`, or `--include-roles` for this rollout.
-4. Run `supabase db push --dry-run --skip-vault --db-url "$YEROME_DB_URL"`.
-   Require the ordered list below and no other SQL. Then run
-   `supabase db push --skip-vault --db-url "$YEROME_DB_URL"`, recording each
-   migration result. Stop on any error; do not blindly retry a partial push.
-   Verify exactly 21 history rows, the RPC and private pin table, 3 archived
-   reserve rows, 0 settlement approvals, RLS and function grants, and the
-   before/after historical row manifest.
-5. Inventory the existing designated Admin UUID privately. Set
-   `EXPECTED_SUPABASE_PROJECT_REF=uliolbtonhrmjwaeliyj`,
-   `EXPECTED_ADMIN_USER_ID` to that verified UUID, `ADMIN_EMAIL` to the
-   canonical address and `ADMIN_BOOTSTRAP_AUDIT_REFERENCE` to the maintenance
-   ticket. Run `npm run bootstrap:admin` with a server-only service key from a
-   protected environment. It pins only this existing user and never creates
-   or changes an Auth account or password. Confirm one pin and one Admin-role
-   user. Do not supply `ADMIN_BOOTSTRAP_PASSWORD`.
-6. The revised migration changes `public.v2_authorize_session` from six parameters to five. The existing Production `main` build still calls the six-parameter form and is **incompatible**. After a fresh reviewed rehearsal and explicit founder authorization covering the **PR #3 merge**, apply the revised v2 migrations and pin the existing Admin UUID in maintenance mode; merge the reviewed password-only PR #3 into `main` and deploy the merged commit to Vercel Production with the corrected environment snapshot. **Do not redeploy the old `main` commit or expose the incompatible app during the transition.** Verify Production READY against the exact merged SHA and record the deployment ID. Never reuse the temporary Preview probe.
-7. Have the founder sign in at the Production URL using the existing password. A normal live password-authenticated Admin session must receive HTTP 200 with `{ "role": "admin" }` from `/api/auth/session` and access the Admin dashboard **without MFA**. Confirm a second Admin, an unpinned UUID, expired/revoked sessions and Owners are denied. Do not record a password, bearer token or secret. Successful authorization on a new Production deployment also confirms its corrected `ADMIN_EMAIL` and service-key scope without exposing their values.
-8. Verify distinct Owner/Admin RLS and PostgREST denials, API role DTOs,
-   financial/audit row manifests, and absence of an enabled settlement policy.
-   Confirm no real transfer ran. Retain the backup and incident evidence.
-   If a gate fails, keep access restricted and use an audited forward repair;
-   do not bypass MFA/RLS or erase history. No Auth-account cleanup is included.
-
-The 12 migration files and order are listed in
-[`production-rollout-plan-2026-10-19.md`](production-rollout-plan-2026-10-19.md#v2-order-and-maintenance-sequence).
-The CLI's `migration repair` and `db push` semantics are documented by
-[Supabase database migrations](https://supabase.com/docs/guides/deployment/database-migrations).
-
-## Remaining gates before authorization
-
-- Review the patch commit and run its pin-only script from the trusted local
-  checkout. The production server is already on v2; this script is not a
-  deployed API route.
-- The corrected shared Vercel entry and Preview build passed the exact
-  project/Admin identity check with one read-only Auth request. The existing
-  Production deployment predates the correction. Its intended configuration
-  must be confirmed through the existing authenticated session flow after an
-  **approved** Production redeploy. No protected value can be read back.
-- The founder verified production TOTP settings in the Supabase dashboard.
-  Actual enrollment and AAL2 remain post-migration steps; no factor exists
-  yet. No dashboard screenshot was attached for independent inspection.
-- The PostgreSQL 17 passwordless connection, 50-table refreshed backup and
-  restore, 339/523/10 signature comparisons, nine-version legacy baseline,
-  12-migration local replay, and automated test/security/build suites passed.
-  Recheck the live row manifest and migration history at maintenance start;
-  if any backup-covered row changes, refresh and rehearse again.
-- Hosted GoTrue/TOTP, PostgREST and real Admin browser evidence is possible
-  only after the approved migration and the founder's TOTP enrollment. A local
-  shim does not establish that hosted behavior.
-
-**Revised deployment authorization checkpoint:** The earlier MFA-enabled local rehearsal is **obsolete** because the SQL, RPC signature, backend and frontend have changed. Codex must rerun automated tests, restored-production migration replay, live-session/Owner/RLS checks and verify the hosted no-MFA/AAL1 settings. Only then request the founder's explicit `DEPLOY V2` authorization for: nine validated legacy history entries, twelve **revised** v2 migrations, pinning the existing Admin UUID, **merging PR #3** (which now contains the password-only app), and deploying the resulting `main` commit with corrected Vercel variables. Maintain the window until real password-only Admin login succeeds. Recheck backup freshness immediately before writes and preserve the documented same-device backup/managed-Vault recovery limitations. No password rotation, account deletion, settlement authorization or money movement is included.
+The earlier `DEPLOY V2` sequence has been executed for the MFA-gated schema and is no longer safe to repeat. Production now has 21 migration-history entries and one pinned Admin UUID. The password-only release requires the forward migration, PR #3 merge, and matching deployment in [the 2026-10-22 checkpoint](production-password-only-checkpoint-2026-10-22.md). No further Production write or merge is authorized by the earlier approval.

@@ -1,18 +1,17 @@
 # YEROME v2 production rollout: verified baseline and gated sequence
 
-**YAGNI override:** Admin sign-in uses email and password only. Disregard previous TOTP/AAL2 rollout steps. The changed single-Admin migration requires a fresh restored-data rehearsal before production deployment.
+**Historical plan, superseded for execution:** Admin sign-in is now password-only. Production has already applied the earlier MFA-gated v2 migrations and pinned the original Admin UUID. Use [the 2026-10-22 password-only checkpoint](production-password-only-checkpoint-2026-10-22.md) for the current state, fresh restored-data rehearsal, and one forward migration required before a matching application deployment. Do not rerun this plan's legacy or twelve v2 migration sequence.
 
-**Current checkpoint (2026-10-21):** The v2 application is already deployed,
-but the production database is still at the legacy schema. The refreshed
-backup, restore, migration rehearsal, and remaining deployment gates are in
+**Historical checkpoint (2026-10-21, before the earlier deployment):** The v2
+application was deployed while the database still had the legacy schema. The
+then-current backup and rehearsal were recorded in
 [`production-rollout-preflight-2026-10-21.md`](production-rollout-preflight-2026-10-21.md).
-The 2026-10-19 inventory below is retained as historical evidence; use the
-newer preflight for current counts and the activation sequence. No production
-database or Auth change is authorized before literal `DEPLOY V2` approval.
+The 2026-10-19 inventory below is retained only as historical evidence. The
+2026-10-22 checkpoint linked above has the current Production state.
 
-Status: **backup and local migration rehearsal complete; deployment approval
-pending**. No production migration, Auth mutation, deployment, merge, or cleanup
-has occurred. The founder's latest production-first instruction
+Historical status at the time: **backup and local migration rehearsal complete;
+deployment approval pending**. At that time no production migration, Auth
+mutation, deployment, merge, or cleanup had occurred. The founder's then-current production-first instruction
 supersedes the older isolated-preview requirement, while retaining a verified
 backup, local restore rehearsal, and literal `DEPLOY V2` approval before any
 production migration or PR merge. Auth-user deletion separately requires an

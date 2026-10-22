@@ -23,6 +23,8 @@ test('correct email and admin role cannot substitute for canonical UUID and live
       app_metadata: { role: liveRole } });
     if (url.pathname.endsWith('/v2_authorize_session')) {
       const body = JSON.parse(init.body);
+      assert.deepEqual(Object.keys(body).sort(),
+        ['p_admin_email', 'p_iat', 'p_role', 'p_session', 'p_user']);
       return Response.json(body.p_user === 'canonical-admin' ? 'admin' : null);
     }
     if (url.pathname.endsWith('/audit_log')) return new Response(null, { status: 201 });

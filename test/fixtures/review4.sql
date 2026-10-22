@@ -170,7 +170,7 @@ do $$ begin
   exception when insufficient_privilege then null;
   end;
 end $$;
-select set_config('request.jwt.claims',jsonb_build_object('sub','40000000-0000-0000-0000-000000000004','session_id','44444444-0000-0000-0000-000000000004','iat',extract(epoch from now())::bigint,'aal','aal2','app_metadata',jsonb_build_object('role','admin'))::text,false);
+select set_config('request.jwt.claims',jsonb_build_object('sub','40000000-0000-0000-0000-000000000004','session_id','44444444-0000-0000-0000-000000000004','iat',extract(epoch from now())::bigint,'aal','aal1','app_metadata',jsonb_build_object('role','admin'))::text,false);
 do $$ begin
   if not exists (select 1 from public.v2_transfer_verifications where evidence_reference = 'proof-1') then
     raise exception 'Admin cannot inspect transfer verification'; end if;
