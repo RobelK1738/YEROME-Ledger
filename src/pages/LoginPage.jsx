@@ -10,7 +10,7 @@ import { Logo } from '../components/ui/Logo.jsx';
 import { APP_NAME } from '../lib/constants.js';
 
 export default function LoginPage() {
-  const { isAuthenticated, role, mfaRequired, loading, configured, adminLogin, ownerLogin } = useAuth();
+  const { isAuthenticated, role, loading, configured, adminLogin, ownerLogin } = useAuth();
   const [mode, setMode] = useState('owner');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -19,7 +19,6 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   if (loading) return <Loading full />;
-  if (mfaRequired) return <Navigate to="/admin/mfa" replace />;
   if (isAuthenticated) return <Navigate to={role === 'admin' ? '/admin' : '/owner'} replace />;
 
   const submit = async (e) => {

@@ -7,7 +7,6 @@ import { RequireRole } from './components/RequireRole.jsx';
 import { Loading } from './components/ui/Loading.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
-import AdminMfaPage from './pages/AdminMfaPage.jsx';
 import AdminOverview from './pages/v2/AdminOverview.jsx';
 import AdminPeople from './pages/v2/AdminPeople.jsx';
 import AdminPayRuns from './pages/v2/AdminPayRuns.jsx';
@@ -37,9 +36,8 @@ function OwnerShell() {
 }
 
 function HomeRedirect() {
-  const { loading, isAuthenticated, role, mfaRequired } = useAuth();
+  const { loading, isAuthenticated, role } = useAuth();
   if (loading) return <Loading full />;
-  if (mfaRequired) return <Navigate to="/admin/mfa" replace />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <Navigate to={role === 'admin' ? '/admin' : '/owner'} replace />;
 }
@@ -48,7 +46,6 @@ export default function App({ recoveryCallback }) {
   return <Routes>
     <Route path="/login" element={<LoginPage />} />
     <Route path="/reset-password" element={<ResetPasswordPage callback={recoveryCallback} />} />
-    <Route path="/admin/mfa" element={<AdminMfaPage />} />
     <Route element={<RequireRole role="admin"><Layout navItems={ADMIN_NAV} portalLabel="YEROME Admin" /></RequireRole>}>
       <Route path="/admin" element={<AdminOverview />} />
       <Route path="/admin/people" element={<AdminPeople />} />

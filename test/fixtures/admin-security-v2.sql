@@ -4,7 +4,7 @@ set role authenticated;
 select set_config('request.jwt.claims',jsonb_build_object(
   'sub','10000000-0000-0000-0000-000000000001',
   'session_id','11111111-1111-1111-1111-111111111111',
-  'iat',extract(epoch from now())::bigint,'aal','aal2',
+  'iat',extract(epoch from now())::bigint,'aal','aal1',
   'app_metadata',jsonb_build_object('role','admin'),
   'user_metadata',jsonb_build_object('role','admin'))::text,false);
 do $$ declare t text; n bigint;
@@ -17,7 +17,10 @@ begin
     execute format('select count(*) from public.%I',t) into n;
     if n <> 0 then raise exception 'Second Admin token can read %',t; end if;
   end loop;
-  if has_function_privilege('authenticated','public.v2_authorize_session(uuid,uuid,bigint,text,text,text)','EXECUTE')
+  if to_regprocedure('public.v2_authorize_session(uuid,uuid,bigint,text,text,text)') is not null
+     or to_regprocedure('private.authorize_session(uuid,uuid,bigint,text,text,text)') is not null then
+    raise exception 'Obsolete six-argument Admin authorization remains'; end if;
+  if has_function_privilege('authenticated','public.v2_authorize_session(uuid,uuid,bigint,text,text)','EXECUTE')
      or has_function_privilege('authenticated','public.v2_pin_admin(uuid,text)','EXECUTE')
      or has_function_privilege('authenticated','public.v2_admin_pin_status()','EXECUTE') then
     raise exception 'Browser may execute privileged identity routine'; end if;
@@ -35,7 +38,7 @@ set role authenticated;
 select set_config('request.jwt.claims',jsonb_build_object(
   'sub','10000000-0000-0000-0000-000000000001',
   'session_id','11111111-1111-1111-1111-111111111111',
-  'iat',extract(epoch from now())::bigint,'aal','aal2',
+  'iat',extract(epoch from now())::bigint,'aal','aal1',
   'app_metadata',jsonb_build_object('role','admin'))::text,true);
 do $$ declare t text; n bigint;
 begin
@@ -92,19 +95,18 @@ do $$ begin
   end;
 end $$;
 
--- AAL1, wrong JWT role and missing session all fail closed. Test in a
--- transaction so fixture state and settled history are unchanged.
+-- The pinned Admin is authorized with a normal password-authenticated AAL1 session.
+-- Live session, role and canonical UUID checks remain mandatory.
 begin;
-update auth.sessions set aal='aal1' where id='44444444-0000-0000-0000-000000000004';
 set role authenticated;
 select set_config('request.jwt.claims',jsonb_build_object(
   'sub','40000000-0000-0000-0000-000000000004',
   'session_id','44444444-0000-0000-0000-000000000004',
-  'iat',extract(epoch from now())::bigint,'aal','aal2',
+  'iat',extract(epoch from now())::bigint,'aal','aal1',
   'app_metadata',jsonb_build_object('role','admin'))::text,true);
 do $$ begin
-  if public.is_admin() or private.current_authorization() <> 'admin_mfa_required' then
-    raise exception 'AAL1 Admin accessed finance'; end if;
+  if not public.is_admin() or private.current_authorization() <> 'admin' then
+    raise exception 'Valid AAL1 pinned Admin session was rejected'; end if;
 end $$;
 reset role;
 rollback;
@@ -115,7 +117,7 @@ set role authenticated;
 select set_config('request.jwt.claims',jsonb_build_object(
   'sub','40000000-0000-0000-0000-000000000004',
   'session_id','44444444-0000-0000-0000-000000000004',
-  'iat',extract(epoch from now())::bigint,'aal','aal2',
+  'iat',extract(epoch from now())::bigint,'aal','aal1',
   'app_metadata',jsonb_build_object('role','admin'))::text,true);
 do $$ begin if public.is_admin() then raise exception 'Deleted session retained Admin access'; end if; end $$;
 reset role;
@@ -128,26 +130,13 @@ set role authenticated;
 select set_config('request.jwt.claims',jsonb_build_object(
   'sub','40000000-0000-0000-0000-000000000004',
   'session_id','44444444-0000-0000-0000-000000000004',
-  'iat',extract(epoch from now())::bigint,'aal','aal2',
+  'iat',extract(epoch from now())::bigint,'aal','aal1',
   'app_metadata',jsonb_build_object('role','admin'))::text,true);
 do $$ begin if public.is_admin() then raise exception 'Expired Admin session retained access'; end if; end $$;
 reset role;
 rollback;
 
-begin;
-update auth.mfa_factors set status='unverified'
-  where id='44444444-4444-4444-4444-444444444444';
-set role authenticated;
-select set_config('request.jwt.claims',jsonb_build_object(
-  'sub','40000000-0000-0000-0000-000000000004',
-  'session_id','44444444-0000-0000-0000-000000000004',
-  'iat',extract(epoch from now())::bigint,'aal','aal2',
-  'app_metadata',jsonb_build_object('role','admin'))::text,true);
-do $$ begin
-  if public.is_admin() then raise exception 'Removed MFA factor retained Admin access'; end if;
-end $$;
-reset role;
-rollback;
+
 
 begin;
 update auth.users set encrypted_password='rotated-synthetic-hash'
@@ -156,7 +145,7 @@ set role authenticated;
 select set_config('request.jwt.claims',jsonb_build_object(
   'sub','40000000-0000-0000-0000-000000000004',
   'session_id','44444444-0000-0000-0000-000000000004',
-  'iat',extract(epoch from now())::bigint,'aal','aal2',
+  'iat',extract(epoch from now())::bigint,'aal','aal1',
   'app_metadata',jsonb_build_object('role','admin'))::text,true);
 do $$ begin if public.is_admin() then raise exception 'Password rotation retained old session'; end if; end $$;
 reset role;

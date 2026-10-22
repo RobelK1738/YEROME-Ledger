@@ -1,5 +1,14 @@
 # Single Admin security and Auth cleanup gate
 
+**CURRENT POLICY — password-only Admin (2026-10-21):** The founder removed MFA. Any AAL2, TOTP, factor enrollment/removal or MFA-required instructions in the historical sections below are superseded. Preserve the pinned UUID, session expiry/revocation, and RLS; rerun the changed migration security tests before live deployment.
+
+**2026-10-21 current sequence:** See
+[`production-rollout-preflight-2026-10-21.md`](production-rollout-preflight-2026-10-21.md).
+The designated Admin already exists and the owner has reset its password.
+The current bootstrap command only pins that existing UUID; no password or
+Auth-account creation is part of this rollout. The dated status and inventory
+below describe the earlier review checkpoint.
+
 Status: local implementation only. PR #1 remains Draft. The founder declined the
 quoted isolated Supabase branch and asked for local work only. No hosted
 migration, project setting, Auth mutation, user deletion, or production release
@@ -68,16 +77,15 @@ it does not prove the hosted Auth lifecycle, PostgREST or Vercel configuration.
    impact. Apply the migration while the app is in a controlled maintenance
    window. Until pinning, all app roles fail closed. Do not switch application
    code onto an unpinned database.
-3. Supply a **new**, strong password through an ephemeral protected bootstrap
-   environment variable; treat any previously shared password as exposed.
-   Set `EXPECTED_SUPABASE_PROJECT_REF`, `ADMIN_EMAIL`, and a nonsecret audit
-   reference. Run `npm run bootstrap:admin` once, then remove the temporary
-   password variable from the process environment. Repeating bootstrap with
-   the same pin must not create another account or change its password.
-4. Sign in as the designated Admin. Complete TOTP enrollment and challenge,
-   then verify a fresh AAL2 session reaches the Admin portal. Preserve the
-   authenticator recovery material in the founder's approved secure custody.
-   Test AAL1 rejection before removing any existing Owner accounts.
+3. Confirm the inventoried Admin UUID, exact project ref, and server-side
+   `ADMIN_EMAIL`. Set `EXPECTED_ADMIN_USER_ID`,
+   `EXPECTED_SUPABASE_PROJECT_REF`, and a nonsecret audit reference, then run
+   `npm run bootstrap:admin` once. It must pin only the existing confirmed
+   Admin and must not create an Auth user or change its password. Repeating it
+   with the same pin is idempotent. Do not supply a bootstrap password.
+4. Sign in as the existing designated Admin using its current password.
+   Verify an ordinary AAL1 session receives Admin authorization without MFA.
+   Confirm invalid, revoked, wrong-UUID and second-Admin sessions are denied.
 5. Refresh the deletion manifest, verify account UUIDs and dependency counts,
    and obtain the founder's literal **`EXECUTE CLEANUP`** approval for that
    exact manifest. Use the supported Supabase Admin Auth deletion API one user
@@ -86,16 +94,16 @@ it does not prove the hosted Auth lifecycle, PostgREST or Vercel configuration.
    mechanisms; the live-session database check also denies stale access tokens
    once their session or account is gone.
 6. Independently verify one Auth user remains, with the designated email,
-   pinned UUID, `admin` role and verified MFA; no other Admin privilege exists.
+   pinned UUID and `admin` role; no other Admin privilege exists.
    Compare historical business rows and check that the removed IDs cannot use
    the backend or PostgREST. File an audit report without credentials.
 
 ## Recovery and rollback
 
-- A lost factor or credential is a founder-controlled incident. Verify identity
+- A lost or compromised credential is a founder-controlled incident. Verify identity
   and backup out of band; record a change ticket and use Supabase's supported
   account recovery process to preserve the pinned UUID. Rotate the password,
-  revoke sessions, enroll a new factor, and verify AAL2 before reopening access.
+  revoke sessions and verify a fresh password login before reopening access.
   There is no backup Admin or HTTP pin override.
 - If the canonical Auth identity itself must be replaced, stop the application.
   A separately authorized DBA migration and audit must revoke the old sessions,

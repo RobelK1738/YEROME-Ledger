@@ -42,7 +42,7 @@ defines `{{ .ConfirmationURL }}` and the hosted dashboard editor.
 1. Treat the previously exposed recovery URL and any session it created as
    compromised. Do not open or forward that link again. Record the incident
    reference and verify the exact Admin Auth identity out of band. Preserve the
-   Auth user, its UUID, MFA factors, and all ledger data.
+   Auth user, its UUID, and all ledger data.
 2. If the designated Admin has a **trusted, currently signed-in browser
    session**, use its **Sign out** button. This app calls Supabase Auth's default
    global sign-out, which revokes that user's refresh tokens across sessions.
@@ -61,10 +61,10 @@ defines `{{ .ConfirmationURL }}` and the hosted dashboard editor.
    Use only the newest email. If it lands anywhere else, stop and recheck the
    Site URL, allowlist, template, and request origin. Do not reuse old mail.
 4. Follow the new link once, set a unique strong password, then sign in again
-   and complete Admin MFA. The reset page itself performs a global sign-out
+   with the new password. The reset page itself performs a global sign-out
    after `updateUser`; if that cannot be confirmed it shows a revocation warning.
-   Verify that an AAL1 recovery session has no Admin financial access and that
-   fresh AAL2 login does. Keep the one-Admin pin and RLS protections in place.
+   Verify that revoked or expired recovery sessions have no Admin financial access
+   and that a fresh password-only login works for the pinned Admin. Keep the one-Admin pin and RLS protections in place.
 
 Global sign-out revokes refresh tokens, while already issued access JWTs can
 remain valid until their expiry. The v2 Admin API and RLS session checks are an
@@ -77,6 +77,6 @@ See [Supabase's sign-out documentation](https://supabase.com/docs/guides/auth/si
 - An expired, used, or non-recovery link displays an error without a password
   form. A valid designated-Admin recovery link allows `updateUser` and then
   signs out globally. Owner links cannot unlock the Admin form.
-- No Auth user deletion, MFA change, RLS change, or financial data migration is
-  included in this PR. Hosted Auth settings, a fresh real email, and production
-  browser/MFA checks remain separate release steps requiring approval.
+- No Auth user deletion, RLS change, or financial data migration was included in
+  the original recovery PR. Hosted Auth settings, a fresh real email, and production
+  browser/login checks remain separate release steps requiring approval.
