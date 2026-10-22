@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Field, TextInput } from '../components/ui/Field.jsx';
-import { Logo } from '../components/ui/Logo.jsx';
-import { APP_NAME } from '../lib/constants.js';
+import { Field, PasswordInput, TextInput } from '../components/ui/Field.jsx';
+import { Button } from '../components/ui/Button.jsx';
+import { Notice } from '../components/ui/Notice.jsx';
+import { useDocumentTitle } from '../components/ui/PageHeader.jsx';
+import { AuthShell } from './AuthShell.jsx';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.js';
 import { completeAdminRecovery, hasPasswordInput,
   requestAdminRecovery } from '../lib/auth/adminRecovery.js';
 
 export default function ResetPasswordPage({ callback }) {
+  useDocumentTitle('Reset Admin password');
   const [status, setStatus] = useState(callback.kind === 'link' ? 'checking' : callback.kind);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -60,63 +63,50 @@ export default function ResetPasswordPage({ callback }) {
     }
   };
 
-  return <div className="login-page">
-    <main className="login-card">
-      <div className="login-brand">
-        <Logo size={34} className="login-brand__logo" />
-        <span className="login-brand__name">{APP_NAME}</span>
-      </div>
-      <h1 className="login-sub">Reset YEROME Admin password</h1>
-      {!isSupabaseConfigured ? <p className="form-error" role="alert">Password recovery is unavailable.</p> : null}
+  return (
+    <AuthShell title="Reset Admin password" subtitle="For the designated YEROME Admin account only. US Persons should contact YEROME.">
+      {!isSupabaseConfigured ? <Notice tone="danger" role="alert">Password recovery is unavailable.</Notice> : null}
 
-      {status === 'checking' ? <p role="status">Checking your recovery link…</p> : null}
-      {status === 'expired' ? <p className="form-error" role="alert">
-        This recovery link has expired. Request a fresh email below.
-      </p> : null}
-      {status === 'invalid' ? <p className="form-error" role="alert">
+      {status === 'checking' ? <Notice tone="info" role="status">Checking your recovery link…</Notice> : null}
+      {status === 'expired' ? <Notice tone="danger" role="alert">This recovery link has expired. Request a fresh email below.</Notice> : null}
+      {status === 'invalid' ? <Notice tone="danger" role="alert">
         This recovery link is invalid or has already been used. Request a fresh email below.
-      </p> : null}
-      {status === 'unavailable' ? <p className="form-error" role="alert">
+      </Notice> : null}
+      {status === 'unavailable' ? <Notice tone="danger" role="alert">
         A recovery email could not be requested right now. Please try again later.
-      </p> : null}
-      {status === 'sent' ? <p role="status">
+      </Notice> : null}
+      {status === 'sent' ? <Notice tone="ok" role="status">
         If this is the designated Admin account, a fresh recovery email will arrive shortly.
-      </p> : null}
-      {status === 'complete' || status === 'complete-revoke' ? <div role="status">
-        <p>Your password was updated. Sign in again with your new password.</p>
-        {status === 'complete-revoke' ? <p className="form-error" role="alert">
+      </Notice> : null}
+      {status === 'complete' || status === 'complete-revoke' ? <>
+        <Notice tone="ok" role="status">Your password was updated. Sign in again with your new password.</Notice>
+        {status === 'complete-revoke' ? <Notice tone="danger" role="alert">
           Session revocation could not be confirmed. Ask the project owner to revoke this Admin account’s sessions in Supabase Auth.
-        </p> : null}
-      </div> : null}
+        </Notice> : null}
+      </> : null}
 
-      {status === 'ready' ? <form onSubmit={savePassword}>
-        <p className="text-sm">Choose a new password for the designated Admin account.</p>
-        <Field label="New password" htmlFor="new-password" required>
-          <TextInput id="new-password" type="password" autoComplete="new-password"
-            value={password} onChange={(event) => setPassword(event.target.value)}
-            required />
+      {status === 'ready' ? <form className="auth-form" onSubmit={savePassword}>
+        <p className="text-sm muted">Choose a new password for the designated Admin account.</p>
+        <Field label="New password" id="new-password" required>
+          <PasswordInput autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
         </Field>
-        <Field label="Confirm new password" htmlFor="confirm-password" required>
-          <TextInput id="confirm-password" type="password" autoComplete="new-password"
-            value={confirmation} onChange={(event) => setConfirmation(event.target.value)}
-            required />
+        <Field label="Confirm new password" id="confirm-password" required error={message || undefined}>
+          <PasswordInput autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required />
         </Field>
-        {message ? <p className="form-error" role="alert">{message}</p> : null}
-        <button className="btn btn--primary btn--block" type="submit" disabled={busy || !isSupabaseConfigured}>
+        <Button variant="primary" block type="submit" loading={busy} disabled={!isSupabaseConfigured}>
           {busy ? 'Updating password…' : 'Update password'}
-        </button>
+        </Button>
       </form> : null}
 
-      {['none', 'expired', 'invalid', 'unavailable', 'sent'].includes(status) ? <form onSubmit={requestLink}>
-        <Field label="Admin email" htmlFor="recovery-email" required>
-          <TextInput id="recovery-email" type="email" autoComplete="email"
-            value={email} onChange={(event) => setEmail(event.target.value)} required />
+      {['none', 'expired', 'invalid', 'unavailable', 'sent'].includes(status) ? <form className="auth-form" onSubmit={requestLink}>
+        <Field label="Admin email" id="recovery-email" required>
+          <TextInput type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
         </Field>
-        <button className="btn btn--primary btn--block" type="submit" disabled={busy || !isSupabaseConfigured}>
+        <Button variant="primary" block type="submit" loading={busy} disabled={!isSupabaseConfigured}>
           {busy ? 'Requesting…' : 'Send recovery email'}
-        </button>
+        </Button>
       </form> : null}
-      <p className="login-note"><Link to="/login">Return to sign in</Link></p>
-    </main>
-  </div>;
+      <div className="auth-foot"><Link to="/login">Return to sign in</Link></div>
+    </AuthShell>
+  );
 }

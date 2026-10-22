@@ -1,15 +1,24 @@
-// Single login screen offering YEROME (email) or Owner (username) sign-in.
+// Single sign-in screen: US Persons use a username, the YEROME Admin uses email.
 // There is intentionally NO signup / create-account option.
 
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Field, TextInput } from '../components/ui/Field.jsx';
+import { ChoiceGroup, Field, PasswordInput, TextInput } from '../components/ui/Field.jsx';
+import { Button } from '../components/ui/Button.jsx';
+import { Notice } from '../components/ui/Notice.jsx';
 import { Loading } from '../components/ui/Loading.jsx';
-import { Logo } from '../components/ui/Logo.jsx';
-import { APP_NAME } from '../lib/constants.js';
+import { useDocumentTitle } from '../components/ui/PageHeader.jsx';
+import { AuthShell } from './AuthShell.jsx';
+import { USERNAME_EXAMPLE } from '../lib/presentation/username.js';
+
+const MODES = [
+  { value: 'owner', label: 'US Person' },
+  { value: 'admin', label: 'YEROME Admin' },
+];
 
 export default function LoginPage() {
+  useDocumentTitle('Sign in');
   const { isAuthenticated, role, loading, configured, adminLogin, ownerLogin } = useAuth();
   const [mode, setMode] = useState('owner');
   const [email, setEmail] = useState('');
@@ -20,6 +29,8 @@ export default function LoginPage() {
 
   if (loading) return <Loading full />;
   if (isAuthenticated) return <Navigate to={role === 'admin' ? '/admin' : '/owner'} replace />;
+
+  const looksLikeEmail = mode === 'owner' && username.includes('@');
 
   const submit = async (e) => {
     e.preventDefault();
@@ -39,101 +50,46 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div className="login-brand">
-          <Logo size={34} className="login-brand__logo" />
-          <span className="login-brand__name">{APP_NAME}</span>
-        </div>
-        <p className="login-sub">Sign in to your account.</p>
+    <AuthShell title="Sign in" subtitle="Welcome back. Choose how you sign in.">
+      {!configured ? (
+        <Notice tone="danger" title="Sign-in is not configured">
+          Set <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> in the environment.
+        </Notice>
+      ) : null}
 
-        {!configured ? (
-          <div className="form-error">
-            Supabase is not configured. Set <code>VITE_SUPABASE_URL</code> and{' '}
-            <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> in your environment.
-          </div>
-        ) : null}
+      <ChoiceGroup label="I am signing in as" name="login-mode" options={MODES} value={mode}
+        onChange={(next) => { setMode(next); setError(''); }} />
 
-        <div className="login-tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'owner'}
-            className={`login-tab ${mode === 'owner' ? 'login-tab--active' : ''}`}
-            onClick={() => {
-              setMode('owner');
-              setError('');
-            }}
-          >
-            Owner
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'admin'}
-            className={`login-tab ${mode === 'admin' ? 'login-tab--active' : ''}`}
-            onClick={() => {
-              setMode('admin');
-              setError('');
-            }}
-          >
-            YEROME
-          </button>
-        </div>
+      {error ? <Notice tone="danger" role="alert">{error}</Notice> : null}
 
-        {error ? <div className="form-error">{error}</div> : null}
-
-        <form onSubmit={submit}>
-          {mode === 'admin' ? (
-            <Field label="Email" htmlFor="admin-email" required>
-              <TextInput
-                id="admin-email"
-                type="email"
-                autoComplete="username"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Admin email"
-                required
-              />
-            </Field>
-          ) : (
-            <Field label="Username" htmlFor="owner-username" required>
-              <TextInput
-                id="owner-username"
-                type="text"
-                autoComplete="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="your-username"
-                required
-              />
-            </Field>
-          )}
-
-          <Field label="Password" htmlFor="password" required>
-            <TextInput
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+      <form className="auth-form" onSubmit={submit}>
+        {mode === 'admin' ? (
+          <Field label="Email" id="admin-email" required>
+            <TextInput type="email" autoComplete="username" value={email}
+              onChange={(e) => setEmail(e.target.value)} placeholder="admin@example.com" required />
           </Field>
+        ) : (
+          <Field label="Username" id="owner-username" required
+            hint={`The username YEROME gave you — not an email address. For example, ${USERNAME_EXAMPLE}.`}
+            error={looksLikeEmail ? 'US Person usernames are not email addresses. Use the username YEROME gave you.' : undefined}>
+            <TextInput type="text" autoComplete="username" autoCapitalize="none" spellCheck={false}
+              value={username} onChange={(e) => setUsername(e.target.value)} placeholder={USERNAME_EXAMPLE} required />
+          </Field>
+        )}
 
-          <button type="submit" className="btn btn--primary btn--block" disabled={busy}>
-            {busy ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
+        <Field label="Password" id="password" required>
+          <PasswordInput autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        </Field>
 
-        {mode === 'admin' ? <p className="login-note">
-          <Link to="/reset-password">Forgot YEROME Admin password?</Link>
-        </p> : null}
+        <Button type="submit" variant="primary" block loading={busy}>{busy ? 'Signing in…' : 'Sign in'}</Button>
+      </form>
 
-        <p className="login-note">
-          Access is provisioned by YEROME. There is no public sign-up.
-        </p>
+      <div className="auth-foot">
+        {mode === 'admin'
+          ? <Link to="/reset-password">Forgot your Admin password?</Link>
+          : <span>Forgot your password? Contact YEROME to reset it.</span>}
+        <span>Access is provisioned by YEROME. There is no public sign-up.</span>
       </div>
-    </div>
+    </AuthShell>
   );
 }

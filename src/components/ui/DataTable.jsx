@@ -14,10 +14,16 @@
 // Columns with `hideOnMobile` are dropped entirely. Tables that annotate nothing
 // keep the previous behaviour: headline + label/value details.
 //
-// columns: [{ key, header, render?(row), align?, mono?, hideOnMobile?, mobile? }]
+// Columns marked `secondary` are dropped from the table on narrower desktops
+// (below 1280px) but still appear in the phone list.
+//
+// `hideOnDesktop` columns exist only to feed the phone list.
+//
+// columns: [{ key, header, render?(row), align?, mono?, hideOnMobile?, hideOnDesktop?, secondary?, mobile? }]
 
 import { Fragment, useState } from 'react';
 import { EmptyState } from './EmptyState.jsx';
+import { Icon } from './Icon.jsx';
 import { useIsCompact } from '../../hooks/useMediaQuery.js';
 
 const MOBILE_PAGE_SIZE = 25;
@@ -31,6 +37,12 @@ function cellValue(col, row) {
 function mobileCellValue(col, row) {
   if (col.renderMobile) return col.renderMobile(row);
   return cellValue(col, row);
+}
+
+// Buttons and links inside a clickable row keep their own behaviour.
+function fromInteractive(event) {
+  return event.target !== event.currentTarget &&
+    Boolean(event.target.closest?.('button, a, input, select, textarea, label, summary'));
 }
 
 function isEmptyCell(value) {
@@ -79,11 +91,11 @@ function CompactList({ columns, rows, getRowKey, onRowClick, mobilePageSize, mob
             ) : null}
             <li
               className="m-row"
-              onClick={clickable ? () => onRowClick(row) : undefined}
+              onClick={clickable ? (e) => { if (!fromInteractive(e)) onRowClick(row); } : undefined}
               onKeyDown={
                 clickable
                   ? (e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
+                      if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
                         e.preventDefault();
                         onRowClick(row);
                       }
@@ -98,7 +110,7 @@ function CompactList({ columns, rows, getRowKey, onRowClick, mobilePageSize, mob
                 {badgeInline ? <div className="m-row__badge">{badge}</div> : null}
                 {!isEmptyCell(amount) ? <div className="m-row__amount">{amount}</div> : null}
                 {clickable ? (
-                  <span className="m-row__chevron" aria-hidden="true">›</span>
+                  <span className="m-row__chevron" aria-hidden="true"><Icon name="chevronRight" size={18} /></span>
                 ) : null}
               </div>
 
@@ -169,13 +181,15 @@ export function DataTable({
   emptyTitle,
   emptyMessage,
   emptyAction,
+  emptyIcon,
   mobilePageSize,
   mobileGroup,
+  label,
 }) {
   const compact = useIsCompact();
 
   if (!rows || rows.length === 0) {
-    return <EmptyState title={emptyTitle || 'No records'} message={emptyMessage} action={emptyAction} />;
+    return <EmptyState icon={emptyIcon} title={emptyTitle || 'No records'} message={emptyMessage} action={emptyAction} compact />;
   }
 
   if (compact) {
@@ -191,15 +205,17 @@ export function DataTable({
     );
   }
 
+  const tableColumns = columns.filter((col) => !col.hideOnDesktop);
+
   return (
     <div className="table-wrap">
-      <table className="data-table">
+      <table className="data-table" aria-label={label}>
         <thead>
           <tr>
-            {columns.map((col) => (
+            {tableColumns.map((col) => (
               <th
                 key={col.key}
-                className={`${col.align ? `ta-${col.align}` : ''} ${col.hideOnMobile ? 'hide-mobile' : ''}`}
+                className={`${col.align ? `ta-${col.align}` : ''} ${col.hideOnMobile ? 'hide-mobile' : ''} ${col.secondary ? 'col-secondary' : ''}`}
               >
                 {col.header}
               </th>
@@ -214,12 +230,12 @@ export function DataTable({
               <tr
                 key={key}
                 className={clickable ? 'data-table__row--clickable' : ''}
-                onClick={clickable ? () => onRowClick(row) : undefined}
+                onClick={clickable ? (e) => { if (!fromInteractive(e)) onRowClick(row); } : undefined}
                 tabIndex={clickable ? 0 : undefined}
                 onKeyDown={
                   clickable
                     ? (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
+                        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
                           e.preventDefault();
                           onRowClick(row);
                         }
@@ -227,13 +243,13 @@ export function DataTable({
                     : undefined
                 }
               >
-                {columns.map((col) => (
+                {tableColumns.map((col) => (
                   <td
                     key={col.key}
                     data-label={col.header}
                     className={`${col.align ? `ta-${col.align}` : ''} ${col.mono ? 'mono' : ''} ${
                       col.hideOnMobile ? 'hide-mobile' : ''
-                    }`}
+                    } ${col.secondary ? 'col-secondary' : ''} ${col.className || ''}`}
                   >
                     {cellValue(col, row)}
                   </td>
