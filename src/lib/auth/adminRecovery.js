@@ -101,10 +101,8 @@ export function captureAdminRecoveryCallback(location, history) {
   return { kind: 'invalid' };
 }
 
-export function isStrongAdminPassword(password) {
-  return typeof password === 'string' && password.length >= 20 &&
-    /[a-z]/.test(password) && /[A-Z]/.test(password) && /[0-9]/.test(password) &&
-    /[^a-zA-Z0-9]/.test(password);
+export function hasPasswordInput(password) {
+  return typeof password === 'string' && password.length > 0;
 }
 
 export async function requestAdminRecovery(auth, email) {
@@ -118,12 +116,16 @@ export async function requestAdminRecovery(auth, email) {
 }
 
 export async function completeAdminRecovery(auth, password, authorized) {
-  if (!authorized || !isStrongAdminPassword(password)) return { kind: 'invalid' };
+  if (!authorized || !hasPasswordInput(password)) return { kind: 'invalid' };
   try {
     const { data, error } = await auth.getUser();
     if (error || !isAdminUser(data?.user)) return { kind: errorKind(error) };
     const update = await auth.updateUser({ password });
-    if (update.error) return { kind: errorKind(update.error) };
+    if (update.error) {
+      if (EXPIRED_CODES.has(update.error.code)) return { kind: 'expired' };
+      if (update.error.status === 401 || update.error.status === 403) return { kind: 'invalid' };
+      return { kind: 'password-rejected' };
+    }
     // Global sign-out revokes refresh tokens; Admin must sign in again.
     try {
       const signOut = await auth.signOut({ scope: 'global' });

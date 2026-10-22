@@ -87,7 +87,7 @@ export default function AdminPeople() {
       <form className="v2-form" onSubmit={(event) => { event.preventDefault(); submit(() => createOwner(person), 'US Person created.'); }}>
         <FormField label="Display name"><input required value={person.displayName} onChange={(e) => setPerson({ ...person, displayName: e.target.value })} /></FormField>
         <FormField label="Login username"><input required value={person.username} onChange={(e) => setPerson({ ...person, username: e.target.value })} /></FormField>
-        <FormField label="Temporary password"><input required type="password" minLength="8" value={person.password} onChange={(e) => setPerson({ ...person, password: e.target.value })} /></FormField>
+        <FormField label="Temporary password"><input required type="password" value={person.password} onChange={(e) => setPerson({ ...person, password: e.target.value })} /></FormField>
         <FormField label="Filing status"><select value={person.filingStatus} onChange={(e) => setPerson({ ...person, filingStatus: e.target.value })}>
           <option value="single">Single</option><option value="mfj">Married filing jointly</option>
           <option value="mfs">Married filing separately</option><option value="hoh">Head of household</option></select></FormField>
