@@ -6,6 +6,7 @@
 
 - Supabase project `uliolbtonhrmjwaeliyj` already has **21 migration-history entries**: verified legacy `0001`–`0009` and the twelve *earlier MFA-gated* v2 migrations. It has one canonical Admin pin for the existing designated Auth UUID, one Auth user, 2 Owners, 12 jobs, 48 paychecks, 50 costs, and 98 audit entries (97 historical plus the Admin-pin event). The password and Auth UUID were not changed. No settlement policy is enabled; no settlement or transfer was posted.
 - Vercel Production deployment `dpl_7493pwRBPFNzNoUMBoiqncwjp3sg` is READY on the existing `main` commit `95287feaa074a0c3e5450861a82a76745a173ed2`. It contains the former MFA-dependent frontend and six-argument authorization request. Do **not** redeploy this commit after changing the RPC.
+- A read-only inventory found **one recent, unrevoked AAL1 session** for the pinned Admin. Its origin is not independently established; no token or session record was printed. The founder must confirm it is expected before password-only authorization is enabled. If it is not recognized, stop and use a separately authorized session-revocation procedure before release.
 - PR #3 remains Draft and unmerged. Its password-only application calls the **five-argument** `v2_authorize_session` RPC. Editing migration `20261019082613` in Git does not rerun it in Production because its version is already marked applied. A new forward migration, `20261022012000_v2_password_only_admin_forward.sql`, is required.
 - Founder intends to disable hosted TOTP and the AAL1 verification deadline. These dashboard switches are **not yet independently verified**. Actual hosted password login and Admin dashboard verification remain post-release checks.
 
@@ -19,7 +20,7 @@
 
 ## Approval gates
 
-1. Founder confirms in the production Supabase dashboard that TOTP is disabled and the AAL1 session-duration limit is off. Keep SMS disabled. No Admin factor enrollment is required or permitted by this plan.
+1. Founder confirms in the production Supabase dashboard that TOTP is disabled and the AAL1 session-duration limit is off. Keep SMS disabled. Confirm whether the one recent Admin AAL1 session is expected; an unrecognized session blocks release until separately resolved. No Admin factor enrollment is required or permitted by this plan.
 2. Review the final PR #3 SHA and the forward migration. Confirm the deployed Production project, corrected server `ADMIN_EMAIL` configuration, one pinned Admin UUID, one Auth Admin user, 21 existing migration versions, no enabled settlement policy, and no unexpected historical row changes. Refresh the protected backup if the inventory has changed.
 3. Re-run the password-only Node, PostgreSQL security and build checks. Run a **read-only** CLI migration dry-run against the exact production project; it must list only the forward migration. Record the resulting backup checksum and review the same-device/managed-Vault limitation.
 4. Obtain a new explicit deployment authorization that covers the **forward migration, merge of PR #3, and deployment of its matching `main` commit**. The old authorization and the old nine-plus-twelve sequence must not be reused.
