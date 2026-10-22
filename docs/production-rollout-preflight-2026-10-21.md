@@ -254,12 +254,7 @@ exact manifest and authorization.
    protected environment. It pins only this existing user and never creates
    or changes an Auth account or password. Confirm one pin and one Admin-role
    user. Do not supply `ADMIN_BOOTSTRAP_PASSWORD`.
-6. After the database migrations and existing-UUID pin are verified, redeploy
-   the **existing `main` commit** to Production in the approved maintenance
-   window so it loads the corrected Vercel variable snapshot. Record the new
-   deployment ID and verify that it is READY and targets Production. Do not
-   merge PR #3 or reuse the temporary Preview diagnostic. [Vercel documents
-   that changed environment variables apply only to new deployments](https://vercel.com/docs/environment-variables/managing-environment-variables).
+6. The revised migration changes `public.v2_authorize_session` from six parameters to five. The existing Production `main` build still calls the six-parameter form and is **incompatible**. After a fresh reviewed rehearsal and explicit founder authorization covering the **PR #3 merge**, apply the revised v2 migrations and pin the existing Admin UUID in maintenance mode; merge the reviewed password-only PR #3 into `main` and deploy the merged commit to Vercel Production with the corrected environment snapshot. **Do not redeploy the old `main` commit or expose the incompatible app during the transition.** Verify Production READY against the exact merged SHA and record the deployment ID. Never reuse the temporary Preview probe.
 7. Have the founder sign in at the Production URL using the existing password. A normal live password-authenticated Admin session must receive HTTP 200 with `{ "role": "admin" }` from `/api/auth/session` and access the Admin dashboard **without MFA**. Confirm a second Admin, an unpinned UUID, expired/revoked sessions and Owners are denied. Do not record a password, bearer token or secret. Successful authorization on a new Production deployment also confirms its corrected `ADMIN_EMAIL` and service-key scope without exposing their values.
 8. Verify distinct Owner/Admin RLS and PostgREST denials, API role DTOs,
    financial/audit row manifests, and absence of an enabled settlement policy.
@@ -294,13 +289,4 @@ The CLI's `migration repair` and `db push` semantics are documented by
   only after the approved migration and the founder's TOTP enrollment. A local
   shim does not establish that hosted behavior.
 
-**Deployment authorization checkpoint:** The previous MFA-enabled preparation passed, but the updated password-only SQL and tests require a fresh local rehearsal before deployment. Once that is complete,
-with the same-device logical-backup/managed-Vault restore limitation recorded.
-The existing Production deployment remains on its older variable snapshot.
-The founder may reply with the literal **`DEPLOY V2`** to authorize the
-controlled migration-history baseline, all 12 production v2 migrations,
-pinning the existing Admin UUID, and a Production redeploy of the current
-`main` commit to load the corrected Vercel configuration, followed by normal password-only Admin login and authorization checks. Recheck backup freshness and
-inventory immediately before the first maintenance write. Approval does
-**not** authorize PR #3 merge, Auth-user deletion, password change,
-settlement, or real transfers.
+**Revised deployment authorization checkpoint:** The earlier MFA-enabled local rehearsal is **obsolete** because the SQL, RPC signature, backend and frontend have changed. Codex must rerun automated tests, restored-production migration replay, live-session/Owner/RLS checks and verify the hosted no-MFA/AAL1 settings. Only then request the founder's explicit `DEPLOY V2` authorization for: nine validated legacy history entries, twelve **revised** v2 migrations, pinning the existing Admin UUID, **merging PR #3** (which now contains the password-only app), and deploying the resulting `main` commit with corrected Vercel variables. Maintain the window until real password-only Admin login succeeds. Recheck backup freshness immediately before writes and preserve the documented same-device backup/managed-Vault recovery limitations. No password rotation, account deletion, settlement authorization or money movement is included.
