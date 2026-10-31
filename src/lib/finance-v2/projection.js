@@ -5,6 +5,7 @@ import {
   hourlyBiweeklyGrossCents, hourlyAnnualGrossCents,
 } from './index.js';
 import { taxReconciliation } from './tax-reconciliation.js';
+import { costBreakdown } from './breakdown.js';
 
 function termsFor(job) {
   return job.terms || null;
@@ -156,6 +157,12 @@ export function ownerStatementDto(projected) {
     monthlyTaxEstimateCents: projected.stateSupported
       ? roundRatio(projected.annualGrossCents, 1, 12) - projected.monthlyAfterTaxCents : null,
     runRateAnnualTaxEstimateCents: projected.stateSupported ? projected.runRateTaxEstimate.totalTaxCents : null,
+    taxBreakdownAnnual: projected.projectionAvailable ? [
+      { key: 'federal', label: 'Federal income tax', annualCents: projected.runRateTaxEstimate.federalIncomeTaxCents },
+      { key: 'ss', label: 'Social Security', annualCents: projected.runRateTaxEstimate.socialSecurityCents },
+      { key: 'medicare', label: 'Medicare', annualCents: projected.runRateTaxEstimate.medicareCents + projected.runRateTaxEstimate.additionalMedicareCents },
+      { key: 'state', label: 'Texas income tax', annualCents: projected.runRateTaxEstimate.stateTaxCents },
+    ] : [],
     stateSupported: projected.stateSupported,
     partnershipConfigured: ['DIRECT_2_WAY', 'MIKI_REFERRAL_2_WAY'].includes(projected.owner.v2_partnership),
     taxYearProjectedWagesCents: projected.taxYearWagesCents,
@@ -163,6 +170,10 @@ export function ownerStatementDto(projected) {
     annualTaxNeedsReview: projected.annualTaxNeedsReview,
     monthlyAfterTaxEquivalentCents: projected.stateSupported ? projected.monthlyAfterTaxCents : null,
     agreedChargesMonthlyCents: s?.quotedCostCents ?? null,
+    serviceChargeBreakdown: costBreakdown({ totalCents: s?.quotedCostCents,
+      jobCount: projected.activeJobCount,
+      apartmentCents: projected.apartment?.quoted_monthly_cents ?? PACKAGE_V1.fixedQuotedCents,
+      referred: projected.owner.v2_partnership === 'MIKI_REFERRAL_2_WAY' }),
     quotedNetMonthlyCents: s?.quotedNetCents ?? null,
     contractualShareRate: 0.5,
     myShareMonthlyCents: s?.personShareCents ?? null,
@@ -187,6 +198,9 @@ export function adminStatementDto(projected) {
     apartmentActualMonthlyCents: projected.apartment?.actual_monthly_cents ?? PACKAGE_V1.fixedActualCents,
     apartmentQuotedMonthlyCents: projected.apartment?.quoted_monthly_cents ?? PACKAGE_V1.fixedQuotedCents,
     actualCostMonthlyCents: s?.actualCostCents ?? null,
+    operatingCostBreakdown: costBreakdown({ totalCents: s?.actualCostCents,
+      jobCount: projected.activeJobCount,
+      apartmentCents: projected.apartment?.actual_monthly_cents ?? PACKAGE_V1.fixedActualCents, actual: true }),
     personShareMonthlyCents: s?.personShareCents ?? null,
     commissionMonthlyCents: s?.commissionCents ?? null,
     gangCutMonthlyCents: s?.gangCutCents ?? null,

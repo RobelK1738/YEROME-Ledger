@@ -30,6 +30,10 @@ export function statementAmounts(person) {
   biweekly.service = subtract(biweekly.profit, biweekly.owner);
   biweekly.yerome = subtract(biweekly.net, biweekly.costs, biweekly.owner, biweekly.commissions, biweekly.gang);
   biweekly.personalTotal = add(biweekly.owner, biweekly.commissionIncome);
+  if (person.commissionSources?.length) {
+    biweekly.commissionIncome = person.commissionSources.reduce((sum, source) => sum + twoWeeks(source.monthlyEquivalentCents), 0);
+    biweekly.personalTotal = add(biweekly.owner, biweekly.commissionIncome);
+  }
   return { monthly, biweekly };
 }
 
@@ -56,4 +60,59 @@ export function nextFunds(people) {
     sources: selected.flatMap((p) => p.forecast.upcoming.filter((row) => row.date === date)
       .map((row) => ({ ...row, personName: p.displayName }))),
   };
+}
+
+/** Itemized costs must add to the same total in each displayed period. */
+export function costDetails(people, actual = false) {
+  const merged = new Map();
+  for (const person of people) {
+    const lines = person[actual ? 'operatingCostBreakdown' : 'serviceChargeBreakdown'];
+    const amounts = statementAmounts(person);
+    const total = amounts.biweekly[actual ? 'costs' : 'fees'];
+    if (!lines?.length || total == null) return [];
+    let remaining = total;
+    lines.forEach((line, index) => {
+      const biweeklyCents = index === lines.length - 1 ? remaining : twoWeeks(line.monthlyCents);
+      remaining -= biweeklyCents;
+      const previous = merged.get(line.key) || { ...line, monthlyCents: 0, biweeklyCents: 0 };
+      merged.set(line.key, { ...previous, monthlyCents: previous.monthlyCents + line.monthlyCents,
+        perJobCents: previous.perJobCents === line.perJobCents ? line.perJobCents : null,
+        biweeklyCents: previous.biweeklyCents + biweeklyCents });
+    });
+  }
+  return [...merged.values()];
+}
+
+/** Allocate annual tax components to the displayed periods; federal carries rounding cents. */
+export function taxDetails(people) {
+  const merged = new Map();
+  for (const person of people) {
+    const lines = person.taxBreakdownAnnual;
+    const amounts = statementAmounts(person);
+    if (!lines?.length || amounts.monthly.tax == null) return [];
+    const details = lines.map((line) => ({ key: line.key, label: line.label,
+      monthlyCents: roundRatio(line.annualCents, 1, 12), biweeklyCents: roundRatio(line.annualCents, 1, 26) }));
+    for (const period of ['monthly', 'biweekly']) {
+      const field = `${period}Cents`;
+      details[0][field] = amounts[period].tax - details.slice(1).reduce((sum, line) => sum + line[field], 0);
+    }
+    for (const line of details) {
+      const previous = merged.get(line.key) || { ...line, monthlyCents: 0, biweeklyCents: 0 };
+      merged.set(line.key, { ...previous, monthlyCents: previous.monthlyCents + line.monthlyCents,
+        biweeklyCents: previous.biweeklyCents + line.biweeklyCents });
+    }
+  }
+  return [...merged.values()];
+}
+
+/** Reuse the visible two-week allocation only when every amount actually matches. */
+export function fundMatchesBiweekly(people, admin = false) {
+  const fund = nextFunds(people);
+  if (!fund) return false;
+  const values = companyAmounts(people).biweekly;
+  const pairs = [['gross', fund.gross], ['tax', fund.tax], ['net', fund.net], ['owner', fund.allocation.ownerShareCents],
+    ...(admin ? [['costs', fund.allocation.actualCostCents], ['commissions', fund.allocation.commissionCents],
+      ['gang', fund.allocation.gangCutCents], ['yerome', fund.allocation.yeromeCents]]
+      : [['fees', fund.allocation.chargesCents], ['service', fund.allocation.serviceShareCents]])];
+  return pairs.every(([key, amount]) => amount != null && values[key] === amount);
 }
