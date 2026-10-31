@@ -4,7 +4,7 @@ import { useAsync } from '../../../hooks/useAsync.js';
 import { useMutation } from '../../../hooks/useMutation.js';
 import { getAdminOverview, saveAdminJob } from '../../../lib/data/v2.js';
 import { dollarsToCents, hourlyAnnualGrossCents, roundRatio } from '../../../lib/finance-v2/index.js';
-import { emptyJobForm, jobFormFromExisting, jobPayload } from '../../../lib/presentation/forms.js';
+import { emptyJobForm, jobFormFromExisting, jobPayload, minimumJobTermsDate } from '../../../lib/presentation/forms.js';
 import { flattenJobs } from '../../../lib/presentation/people.js';
 import { PERIODS_BY_FREQUENCY } from '../../../lib/presentation/labels.js';
 import { formatDate, money, todayISO } from '../../../lib/presentation/format.js';
@@ -75,10 +75,16 @@ export default function JobForm() {
   const set = (key, value) => setJob((state) => ({ ...state, [key]: value }));
   const preview = estimate(job);
   const ended = existing && ['ended', 'archived'].includes(existing.status);
+  const minimumDate = isEdit ? minimumJobTermsDate(existing, today) : undefined;
+  const dateError = isEdit && job.effectiveFrom && job.effectiveFrom < minimumDate
+    ? `Choose ${formatDate(minimumDate)} or later. Earlier terms remain in history.` : null;
 
   function submit(event) {
     event.preventDefault();
-    run(() => saveAdminJob(jobPayload(job), job.jobId ? 'edit' : 'create'), {
+    run(() => {
+      if (dateError) throw new Error(dateError);
+      return saveAdminJob(jobPayload(job), job.jobId ? 'edit' : 'create');
+    }, {
       success: job.jobId ? 'New pay terms saved. Earlier terms remain in history.' : 'Job added.',
       onSuccess: () => navigate(returnTo),
     });
@@ -160,8 +166,9 @@ export default function JobForm() {
             </Field>
           ) : null}
           <Field label="Terms effective from" required full={isEdit}
-            hint={isEdit ? `Current terms began ${formatDate(existing.currentTermsEffectiveFrom)}. Defaults to the following day or tomorrow.` : 'Usually the start date.'}>
-            <TextInput type="date" value={job.effectiveFrom} onChange={(e) => set('effectiveFrom', e.target.value)} />
+            error={dateError}
+            hint={isEdit ? `Latest saved terms start ${formatDate(existing.latestTerms?.effectiveFrom || existing.currentTermsEffectiveFrom)}. New terms can start ${formatDate(minimumDate)} or later.` : 'Usually the start date.'}>
+            <TextInput type="date" min={minimumDate} value={job.effectiveFrom} onChange={(e) => set('effectiveFrom', e.target.value)} />
           </Field>
         </FormSection>
       </div>
