@@ -38,6 +38,11 @@ to the next inflow and preserve cents. They are projections, not payroll facts.
 Monthly and two-week totals share one table. Two-week amounts use 26 periods
 per year; they are not half-month totals. Exact-cent residuals stay in the final
 share, and unknown inputs stay unavailable rather than becoming zero.
+Job sources, tax components and cost categories expand inside their totals.
+Owner charges and Admin operating costs are separate allowlisted breakdowns.
+When the next dated fund matches the two-week column, the page points to that
+column instead of repeating it. Staggered pay dates have their own collapsed
+allocation, including each receiving owner's share on the company statement.
 The next 90 days of expected income use the configured 2026 Texas tax
 assumptions, including dates beyond the calendar year.
 

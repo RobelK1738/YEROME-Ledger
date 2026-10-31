@@ -94,7 +94,7 @@ export default function PersonDetail() {
   return <>
     <PageHeader back={back} title={person.displayName} subtitle={`${person.activeJobCount} jobs · ${PARTNERSHIP_LABELS[person.partnership] || 'Choose a partnership'}`}
       actions={<><Button variant="secondary" onClick={() => setAssumptionsOpen(true)}>Costs & split</Button><ButtonLink to={`/admin/jobs/new?owner=${ownerId}`} variant="primary" icon="plus">Add job</ButtonLink></>} />
-    <Breakdown person={person} admin />
+    <Breakdown person={person} admin commissions={data.commissions.filter((row) => row.referredOwnerId === ownerId)} />
     <NextFund person={person} admin onEdit={() => setAllocationOpen(true)} />
     <CommissionDetails sources={sources} />
     <details className="statement-disclosure" open={searchParams.get('tab') === 'jobs'}><summary>Manage jobs ({person.myJobs.length})</summary><Jobs person={person} refresh={refresh} /></details>

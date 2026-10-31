@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { statementAmounts, companyAmounts, nextFunds } from '../src/lib/presentation/statement.js';
+import { statementAmounts, companyAmounts, nextFunds, costDetails, taxDetails, fundMatchesBiweekly } from '../src/lib/presentation/statement.js';
+import { projectPerson, ownerStatementDto, adminStatementDto } from '../src/lib/finance-v2/projection.js';
+import { incomeForecast, ownerForecastDto } from '../src/lib/finance-v2/forecast.js';
 import { ADMIN_NAV, OWNER_NAV } from '../src/app/navigation.js';
 
 const person = { ownerId: 'one', displayName: 'Owner', projectionAvailable: true,
@@ -68,4 +70,45 @@ test('primary navigation is two Admin destinations and one Owner statement', () 
   assert.deepEqual(ADMIN_NAV.filter((item) => item.primary).map((item) => item.label), ['Statement', 'Owners']);
   assert.equal(OWNER_NAV.length, 1);
   assert.equal(OWNER_NAV[0].to, '/owner');
+});
+
+test('seven-job workbook example has itemized charges and separate private operating costs', () => {
+  const owner = { id: 'seven', display_name: 'Seven-job owner', status: 'active', state: 'TX', filing_status: 'single', v2_partnership: 'DIRECT_2_WAY' };
+  const jobs = [1400, 1900, 1800, 2000, 1800, 1400, 1900].map((rate, index) => ({
+    id: `job-${index}`, owner_id: owner.id, employer_name: `Employer ${index + 1}`, status: 'active', start_date: '2026-11-02',
+    terms: { mode: 'hourly', hourly_rate_cents: rate, expected_weekly_hours: 40, pay_frequency: 'biweekly', periods_per_year: 26, first_pay_date: '2026-11-13' },
+  }));
+  const projected = projectPerson({ owner, jobs, asOf: '2026-10-31' });
+  const publicDto = ownerStatementDto(projected), adminDto = adminStatementDto(projected);
+  assert.equal(publicDto.activeJobCount, 7);
+  assert.equal(publicDto.annualGrossEstimateCents, 25376000);
+  assert.deepEqual(publicDto.serviceChargeBreakdown.map((line) => line.monthlyCents), [280000, 90000, 280000, 70000, 35000]);
+  assert.deepEqual(adminDto.operatingCostBreakdown.map((line) => line.monthlyCents), [140000, 65000, 70000, 35000, 35000]);
+  assert.equal('operatingCostBreakdown' in publicDto, false);
+  assert.equal(publicDto.agreedChargesMonthlyCents, 755000);
+  assert.equal(adminDto.actualCostMonthlyCents, 345000);
+  const taxes = taxDetails([publicDto]);
+  assert.equal(taxes.reduce((sum, line) => sum + line.monthlyCents, 0), publicDto.monthlyTaxEstimateCents);
+  assert.equal(taxes.reduce((sum, line) => sum + line.biweeklyCents, 0), statementAmounts(publicDto).biweekly.tax);
+  assert.equal(taxes.find((line) => line.key === 'state').monthlyCents, 0);
+  assert.equal(taxes.find((line) => line.key === 'state').biweeklyCents, 0);
+  assert.deepEqual(taxDetails([{ ...publicDto, projectionAvailable: false }]), []);
+  for (const actual of [false, true]) {
+    const lines = costDetails([adminDto], actual);
+    const amounts = statementAmounts(adminDto);
+    const key = actual ? 'costs' : 'fees';
+    assert.equal(lines.reduce((sum, line) => sum + line.monthlyCents, 0), amounts.monthly[key]);
+    assert.equal(lines.reduce((sum, line) => sum + line.biweeklyCents, 0), amounts.biweekly[key]);
+  }
+  const forecast = incomeForecast({ owner, jobs: [jobs[0]], asOf: '2026-10-31' });
+  const one = ownerStatementDto(projectPerson({ owner, jobs: [jobs[0]], asOf: '2026-10-31' }));
+  assert.equal(fundMatchesBiweekly([{ ...one, forecast: ownerForecastDto(forecast) }]), true);
+  assert.equal(fundMatchesBiweekly([{ ...publicDto, forecast: ownerForecastDto(forecast) }]), false);
+});
+
+test('referral source amounts sum to the displayed two-week income without a rounding gap', () => {
+  const commissionSources = [1, 2, 3].map((id) => ({ referralId: String(id), monthlyEquivalentCents: 20000 }));
+  const values = statementAmounts({ ...person, commissionIncomeMonthlyCents: 60000, commissionSources });
+  assert.equal(values.biweekly.commissionIncome, 3 * 9231);
+  assert.equal(values.biweekly.personalTotal, values.biweekly.owner + 3 * 9231);
 });
