@@ -47,11 +47,11 @@ export function JobActions({ job, onChanged, from, compact = false }) {
 
   return (
     <ButtonGroup className="job-actions">
-      <ButtonLink to={`/admin/jobs/${job.id}/terms`} state={from ? { from } : undefined} size="sm" variant="secondary" icon={compact ? undefined : 'edit'}>
-        Change terms
+      <ButtonLink to={`/admin/jobs/${job.id}/edit`} state={from ? { from } : undefined} size="sm" variant="secondary" icon={compact ? undefined : 'edit'}>
+        Edit job
       </ButtonLink>
       {job.status === 'active' ? statusButton('pause', 'pause', 'Pause') : null}
-      {job.status === 'paused' || job.status === 'pending' ? statusButton('resume', 'play', 'Resume') : null}
+      {job.status === 'paused' ? statusButton('resume', 'play', 'Resume') : null}
       {statusButton('end', 'stop', 'End job', 'ghost-danger')}
     </ButtonGroup>
   );

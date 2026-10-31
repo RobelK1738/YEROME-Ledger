@@ -32,23 +32,24 @@ test('job payload switches cleanly between hourly and salary terms', () => {
   assert.equal(salary.hourlyRateCents, null);
   assert.equal(salary.expectedWeeklyHours, null);
   assert.equal(salary.annualSalaryCents, 8_000_000);
-  assert.deepEqual(Object.keys(salary).sort(), ['annualSalaryCents', 'effectiveFrom', 'employerName',
+  assert.deepEqual(Object.keys(salary).sort(), ['annualSalaryCents', 'employerName',
     'expectedWeeklyHours', 'firstPayDate', 'hourlyRateCents', 'mode', 'ownerId', 'payFrequency',
     'periodsPerYear', 'roleTitle', 'startDate', 'status'].sort());
 });
 
-test('changing terms starts the day after the later of today and current terms', () => {
-  const job = { id: 'job-1', ownerId: 'owner-1', employerName: 'Acme', compensationMode: 'salary',
-    annualGrossCents: 6_000_000, payFrequency: 'monthly', periodsPerYear: 12, firstPayDate: '2026-01-31',
-    currentTermsEffectiveFrom: '2026-11-01' };
-  const form = jobFormFromExisting(job, '2026-10-22');
-  assert.equal(form.effectiveFrom, '2026-11-02');
-  assert.equal(form.startDate, '');
+test('editing a job uses saved inputs without an effective-date requirement', () => {
+  const job = { id: 'job-1', ownerId: 'owner-1', employerName: 'Acme', status: 'pending',
+    startDate: '2026-11-02', savedPayDetails: { compensationMode: 'salary', annualGrossCents: 6000000,
+      payFrequency: 'monthly', periodsPerYear: 12, firstPayDate: '2026-11-30' } };
+  const form = jobFormFromExisting(job);
+  assert.equal(form.annualSalary, '60000');
+  assert.equal(form.firstPayDate, '2026-11-30');
+  assert.equal(form.startDate, '2026-11-02');
+  assert.equal('effectiveFrom' in form, false);
   const payload = jobPayload(form);
-  assert.equal(payload.action, 'change_terms');
+  assert.equal(payload.action, 'save');
   assert.equal(payload.jobId, 'job-1');
-  assert.equal(payload.startDate, null);
-  assert.deepEqual(jobStatusPayload('job-1', 'end', '2026-10-22'), { jobId: 'job-1', action: 'end', endDate: '2026-10-22' });
+  assert.equal('effectiveFrom' in payload, false);
   assert.deepEqual(jobStatusPayload('job-1', 'pause', '2026-10-22'), { jobId: 'job-1', action: 'pause', effectiveFrom: '2026-10-22' });
 });
 
@@ -110,7 +111,7 @@ test('overview separates active profiles from people with active jobs', () => {
 test('review reasons explain why an estimate is withheld', () => {
   const reasons = reviewReasons({ ownerId: 'x', personStatus: 'active', projectionAvailable: false,
     agreementVerifiedAt: null, partnership: 'MIKI_REFERRAL_2_WAY', apartmentQuotedMonthlyCents: 90000,
-    myJobs: [{ status: 'active', needsTermsReview: true }] }, []);
+    myJobs: [{ status: 'active', missingPayDetails: true }] }, []);
   assert.deepEqual(reasons.map((r) => r.key), ['terms']);
   assert.deepEqual(reviewReasons({ projectionAvailable: true }), []);
 });

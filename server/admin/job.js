@@ -1,9 +1,10 @@
 import { adminClient, requireAdmin, readJsonBody } from '../_lib/supabaseAdmin.js';
+import { validISODate } from '../../src/lib/finance-v2/allocation-plan.js';
 
 const FREQUENCIES = new Set(['weekly', 'biweekly', 'monthly']);
-const STATUSES = new Set(['pending', 'active', 'paused', 'ended', 'archived']);
 
 function money(value) {
+  if (value == null || value === '') return null;
   const number = Number(value);
   return Number.isSafeInteger(number) && number >= 0 ? number : null;
 }
@@ -11,13 +12,13 @@ function money(value) {
 function terms(body) {
   const mode = body.mode;
   const rate = mode === 'hourly' ? money(body.hourlyRateCents) : null;
-  const hours = mode === 'hourly' ? Number(body.expectedWeeklyHours) : null;
+  const hours = mode === 'hourly' && body.expectedWeeklyHours != null && body.expectedWeeklyHours !== '' ? Number(body.expectedWeeklyHours) : null;
   const salary = mode === 'salary' ? money(body.annualSalaryCents) : null;
   const periods = Number(body.periodsPerYear || 26);
   if (!['hourly', 'salary'].includes(mode) || !FREQUENCIES.has(body.payFrequency) ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(body.firstPayDate || '') ||
-      !Number.isInteger(periods) || periods <= 0 ||
-      (mode === 'hourly' && (rate === null || !Number.isFinite(hours) || hours < 0)) ||
+      !validISODate(body.firstPayDate) ||
+      !Number.isInteger(periods) || periods <= 0 || periods > 53 ||
+      (mode === 'hourly' && (rate === null || hours === null || !Number.isFinite(hours) || hours < 0)) ||
       (mode === 'salary' && salary === null)) return null;
   return {
     p_mode: mode,
@@ -37,35 +38,26 @@ export default async function handler(req, res) {
   const body = await readJsonBody(req);
   const db = adminClient();
   try {
-    if (req.method === 'POST') {
+    if (req.method === 'POST' || ['save', 'change_terms'].includes(body.action)) {
       const input = terms(body);
-      if (!input || !body.ownerId || !String(body.employerName || '').trim() || !body.effectiveFrom) {
-        return res.status(400).json({ error: 'Complete the US Person, employer and pay terms.' });
+      if (!input || !body.ownerId || !String(body.employerName || '').trim() ||
+        (req.method === 'PATCH' && !body.jobId) || (body.startDate && !validISODate(body.startDate))) {
+        return res.status(400).json({ error: 'Enter the owner, employer, pay details and first pay date.' });
       }
-      const { data, error } = await db.rpc('v2_create_job', {
-        p_owner: body.ownerId,
-        p_employer: String(body.employerName).trim(),
-        p_role_title: body.roleTitle || null,
-        p_status: STATUSES.has(body.status) ? body.status : 'active',
-        p_start_date: body.startDate || null,
-        p_end_date: body.endDate || null,
-        p_effective_from: body.effectiveFrom,
-        ...input,
+      const { data, error } = await db.rpc('v3_save_job', {
+        p_job: req.method === 'POST' ? null : body.jobId,
+        p_owner: body.ownerId, p_employer: String(body.employerName).trim(),
+        p_role_title: body.roleTitle || null, p_start_date: body.startDate || null,
+        p_details: { mode: input.p_mode, hourly_rate_cents: input.p_hourly_rate_cents,
+          expected_weekly_hours: input.p_weekly_hours, annual_salary_cents: input.p_annual_salary_cents,
+          pay_frequency: input.p_pay_frequency, first_pay_date: input.p_first_pay_date,
+          periods_per_year: input.p_periods_per_year },
         p_actor: auth.user.id,
       });
       if (error) throw error;
-      return res.status(201).json({ jobId: data });
+      return res.status(req.method === 'POST' ? 201 : 200).json({ jobId: data });
     }
     if (!body.jobId) return res.status(400).json({ error: 'Job ID required.' });
-    if (body.action === 'change_terms') {
-      const input = terms(body);
-      if (!input || !body.effectiveFrom) return res.status(400).json({ error: 'Complete the new pay terms.' });
-      const { data, error } = await db.rpc('v2_change_job_terms', {
-        p_job: body.jobId, p_effective_from: body.effectiveFrom, ...input, p_actor: auth.user.id,
-      });
-      if (error) throw error;
-      return res.status(200).json({ termId: data });
-    }
     if (['end', 'pause', 'resume'].includes(body.action)) {
       const status = { end: 'ended', pause: 'paused', resume: 'active' }[body.action];
       const { data, error } = await db.rpc('v2_change_job_status', {
@@ -79,9 +71,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Unsupported job action.' });
   } catch (error) {
     console.error('Admin job operation failed', error?.code || 'unknown');
-    if (error?.code === 'P0001' && error.message === 'New terms must start prospectively after current terms') {
-      return res.status(400).json({ error: 'New pay terms must start after the latest saved terms and cannot be backdated. Reload the form to see the earliest allowed date.' });
-    }
-    return res.status(400).json({ error: 'Could not save the job. Review terms and dates.' });
+    return res.status(400).json({ error: 'Could not save the job. Check the pay details and dates.' });
   }
 }

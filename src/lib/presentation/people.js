@@ -53,8 +53,8 @@ export function reviewReasons(person) {
   const reasons = [];
   if (!person.partnership) reasons.push({ key: 'partnership', label: 'Choose a partnership model' });
   if (person.stateSupported === false) reasons.push({ key: 'state', label: 'State tax assumptions are not configured' });
-  if ((person.myJobs || []).some((job) => job.status === 'active' && job.needsTermsReview))
-    reasons.push({ key: 'terms', label: 'An active job is missing compensation terms' });
+  if ((person.myJobs || []).some((job) => job.status === 'active' && job.missingPayDetails))
+    reasons.push({ key: 'terms', label: 'An active job is missing pay details' });
   if (!reasons.length) reasons.push({ key: 'inputs', label: 'Complete the projection inputs' });
   return reasons;
 }
@@ -93,10 +93,17 @@ export function overviewMetrics(overview, referrals = [], today = todayISO()) {
   };
 }
 
-/** "$25.00/hr · 40 h/wk" or "$80,000.00/yr"; null when terms need review. */
+/** Use already-submitted details when a future job has not started yet. */
+export function payDetailsFor(job) {
+  return !job.compensationMode && job.savedPayDetails
+    ? { ...job, ...job.savedPayDetails, status: job.status } : job;
+}
+
+/** "$25.00/hr · 40 h/wk" or "$80,000.00/yr" from saved inputs. */
 export function payTermsText(job) {
-  if (job.needsTermsReview || !job.compensationMode) return null;
-  return job.compensationMode === 'hourly'
-    ? `${money(job.hourlyRateCents)}/hr · ${job.expectedWeeklyHours} h/wk`
-    : `${money(job.annualGrossCents)}/yr`;
+  const details = payDetailsFor(job);
+  if (!details.compensationMode) return null;
+  return details.compensationMode === 'hourly'
+    ? `${money(details.hourlyRateCents)}/hr · ${details.expectedWeeklyHours} h/wk`
+    : `${money(details.annualGrossCents)}/yr`;
 }

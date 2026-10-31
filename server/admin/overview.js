@@ -1,6 +1,5 @@
 import { verifiedPrincipal, sendApiError, allPages } from '../_lib/v2.js';
 import { loadPlanningPerson, planningDto, loadCommissionProjections } from '../_lib/planning.js';
-import { attachJobEditingTerms } from '../_lib/jobTerms.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed.' });
@@ -24,7 +23,7 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'private, no-store');
     return res.status(200).json({ asOf, basis: 'estimated monthly run rate', commissions,
       totalMonthlyProfitCents: current.reduce((sum, row) => sum + (row.yeromeTakeHomeMonthlyCents || 0), 0),
-      people: await attachJobEditingTerms(principal.db, people),
+      people,
       unverifiedCount: current.filter((row) => !row.projectionAvailable).length });
   } catch (error) { return sendApiError(res, error); }
 }

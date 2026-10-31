@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAsync } from '../../../hooks/useAsync.js';
 import { getAdminOverview } from '../../../lib/data/v2.js';
-import { flattenJobs, payTermsText } from '../../../lib/presentation/people.js';
+import { flattenJobs, payTermsText, payDetailsFor } from '../../../lib/presentation/people.js';
 import { COMPENSATION_LABELS, JOB_STATUS, PAY_FREQUENCY_LABELS } from '../../../lib/presentation/labels.js';
 import { formatDate, matchesQuery, money, plural } from '../../../lib/presentation/format.js';
 import { PageHeader } from '../../../components/ui/PageHeader.jsx';
@@ -22,16 +22,16 @@ export default function JobsList() {
   const setFilter = (key) => (value) => setFilters((state) => ({ ...state, [key]: value }));
 
   const header = <PageHeader title="Jobs"
-    subtitle="Every job across US Persons, with current pay terms and status. Changes keep dated history."
+    subtitle="Saved pay details and expected income dates for every owner’s jobs."
     actions={<ButtonLink to="/admin/jobs/new" state={{ from: '/admin/jobs' }} variant="primary" icon="plus">Add job</ButtonLink>} />;
   if (loading) return <>{header}<PageSkeleton header={false} stats={0} label="Loading jobs…" /></>;
   if (error) return <>{header}<ErrorState error={error} onRetry={refresh} /></>;
 
   const people = (data?.people || []).filter((person) => person.personStatus !== 'archived');
-  const jobs = flattenJobs(people);
+  const jobs = flattenJobs(people).map(payDetailsFor);
   const rows = jobs.filter((job) =>
     (!filters.status || job.status === filters.status) &&
-    (!filters.mode || (filters.mode === 'review' ? job.needsTermsReview : job.compensationMode === filters.mode)) &&
+    (!filters.mode || job.compensationMode === filters.mode) &&
     (!filters.ownerId || job.ownerId === filters.ownerId) &&
     matchesQuery(filters.query, job.employerName, job.roleTitle, job.personName));
   const active = rows.filter((job) => job.status === 'active');
@@ -44,15 +44,15 @@ export default function JobsList() {
     ), renderMobile: (job) => job.employerName },
     { key: 'person', header: 'US Person', mobile: 'meta', render: (job) => <Link to={`/admin/people/${job.ownerId}`}>{job.personName}</Link>,
       renderMobile: (job) => job.personName },
-    { key: 'status', header: 'Status', mobile: 'badge', render: (job) => <StatusBadge status={job.status} /> },
-    { key: 'pay', header: 'Pay terms', mobile: 'meta', render: (job) => (payTermsText(job) ? (
+    { key: 'status', header: 'Status', mobile: 'badge', render: (job) => job.status === 'pending' ? <Badge tone="info">Starts {formatDate(job.startDate)}</Badge> : <StatusBadge status={job.status} /> },
+    { key: 'pay', header: 'Pay details', mobile: 'meta', render: (job) => (payTermsText(job) ? (
       <div className="cell-stack"><span>{payTermsText(job)}</span><span className="cell-sub">{PAY_FREQUENCY_LABELS[job.payFrequency] || '—'}</span></div>
-    ) : <Badge tone="warn" dot={false}>Terms need review</Badge>),
-      renderMobile: (job) => payTermsText(job) || 'Terms need review' },
+    ) : <Badge tone="warn" dot={false}>Pay details missing</Badge>),
+      renderMobile: (job) => payTermsText(job) || 'Pay details missing' },
     { key: 'gross', header: 'Annual gross (est.)', align: 'right', mobile: 'amount', render: (job) => <span className="num">{money(job.annualGrossCents)}</span>,
       renderMobile: (job) => money(job.annualGrossCents) },
-    { key: 'dates', header: 'Started', hideOnMobile: true, secondary: true, render: (job) => (
-      <div className="cell-stack"><span className="nowrap">{formatDate(job.startDate)}</span><span className="cell-sub nowrap">Terms from {formatDate(job.currentTermsEffectiveFrom)}</span></div>
+    { key: 'dates', header: 'Income dates', hideOnMobile: true, secondary: true, render: (job) => (
+      <div className="cell-stack"><span className="nowrap">{formatDate(job.startDate)}</span><span className="cell-sub nowrap">First pay {formatDate(job.firstPayDate)}</span></div>
     ) },
     { key: 'actions', header: '', mobile: 'actions', render: (job) => <JobActions job={job} onChanged={refresh} from="/admin/jobs" compact /> },
   ];
@@ -75,7 +75,7 @@ export default function JobsList() {
         <FilterSelect label="Status" value={filters.status} onChange={setFilter('status')}
           options={Object.entries(JOB_STATUS).map(([value, meta]) => ({ value, label: meta.label }))} />
         <FilterSelect label="Pay type" value={filters.mode} onChange={setFilter('mode')}
-          options={[...Object.entries(COMPENSATION_LABELS).map(([value, label]) => ({ value, label })), { value: 'review', label: 'Terms need review' }]} />
+          options={Object.entries(COMPENSATION_LABELS).map(([value, label]) => ({ value, label }))} />
         <FilterSelect label="US Person" value={filters.ownerId} onChange={setFilter('ownerId')}
           options={people.map((person) => ({ value: person.ownerId, label: person.displayName }))} allLabel="Everyone" />
       </FilterBar>

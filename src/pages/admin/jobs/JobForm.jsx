@@ -4,10 +4,10 @@ import { useAsync } from '../../../hooks/useAsync.js';
 import { useMutation } from '../../../hooks/useMutation.js';
 import { getAdminOverview, saveAdminJob } from '../../../lib/data/v2.js';
 import { dollarsToCents, hourlyAnnualGrossCents, roundRatio } from '../../../lib/finance-v2/index.js';
-import { emptyJobForm, jobFormFromExisting, jobPayload, minimumJobTermsDate } from '../../../lib/presentation/forms.js';
+import { emptyJobForm, jobFormFromExisting, jobPayload } from '../../../lib/presentation/forms.js';
 import { flattenJobs } from '../../../lib/presentation/people.js';
 import { PERIODS_BY_FREQUENCY } from '../../../lib/presentation/labels.js';
-import { formatDate, money, todayISO } from '../../../lib/presentation/format.js';
+import { money, todayISO } from '../../../lib/presentation/format.js';
 import { PageHeader } from '../../../components/ui/PageHeader.jsx';
 import { Card } from '../../../components/ui/Card.jsx';
 import { PageSkeleton } from '../../../components/ui/Loading.jsx';
@@ -56,7 +56,7 @@ export default function JobForm() {
 
   const returnTo = location.state?.from || (job?.ownerId ? `/admin/people/${job.ownerId}?tab=jobs` : '/admin/jobs');
   const back = { to: location.state?.from || '/admin/jobs', label: location.state?.from?.startsWith('/admin/people') ? 'US Person' : 'Jobs' };
-  const title = isEdit ? 'Change pay terms' : 'Add job';
+  const title = isEdit ? 'Edit job' : 'Add job';
 
   if (loading) return <div className="form-page"><PageSkeleton stats={0} rows={6} label="Loading job form…" /></div>;
   if (error) return <div className="form-page"><PageHeader back={back} title={title} /><ErrorState error={error} onRetry={refresh} /></div>;
@@ -75,17 +75,13 @@ export default function JobForm() {
   const set = (key, value) => setJob((state) => ({ ...state, [key]: value }));
   const preview = estimate(job);
   const ended = existing && ['ended', 'archived'].includes(existing.status);
-  const minimumDate = isEdit ? minimumJobTermsDate(existing, today) : undefined;
-  const dateError = isEdit && job.effectiveFrom && job.effectiveFrom < minimumDate
-    ? `Choose ${formatDate(minimumDate)} or later. Earlier terms remain in history.` : null;
 
   function submit(event) {
     event.preventDefault();
     run(() => {
-      if (dateError) throw new Error(dateError);
       return saveAdminJob(jobPayload(job), job.jobId ? 'edit' : 'create');
     }, {
-      success: job.jobId ? 'New pay terms saved. Earlier terms remain in history.' : 'Job added.',
+      success: job.jobId ? 'Job details saved. Projections updated.' : 'Job added. Projections are ready.',
       onSuccess: () => navigate(returnTo),
     });
   }
@@ -93,24 +89,24 @@ export default function JobForm() {
   return <div className="form-page">
     <PageHeader back={back} title={title}
       subtitle={isEdit
-        ? `${existing.employerName} · ${existing.personName}. New terms apply from the effective date; earlier terms stay in history.`
+        ? `${existing.employerName} · ${existing.personName}. Update the saved pay details; projections use them automatically.`
         : 'Hourly rate and expected weekly hours, or annual salary, drive the steady-state estimate.'} />
-    {ended ? <Notice tone="warn" title="This job has ended">Pay terms can no longer change for an ended job.</Notice> : null}
+    {ended ? <Notice tone="warn" title="This job has ended">Ended jobs cannot be edited.</Notice> : null}
     <form className="card form-card" onSubmit={submit}>
       <div className="card__body">
         {saveError ? <Notice tone="danger" title="The job was not saved">{saveError}</Notice> : null}
 
-        <FormSection step="1" title="Assignment" description={isEdit ? 'Person, employer and role are fixed for an existing job.' : 'Who holds this job and where.'}>
+        <FormSection step="1" title="Assignment" description="Who holds this job and where.">
           <Field label="US Person" required full>
             <Select value={job.ownerId} disabled={isEdit} placeholder="Choose a person"
               options={people.map((person) => ({ value: person.ownerId, label: person.displayName }))}
               onChange={(e) => set('ownerId', e.target.value)} />
           </Field>
           <Field label="Employer" required>
-            <TextInput value={job.employerName} disabled={isEdit} autoComplete="organization" onChange={(e) => set('employerName', e.target.value)} />
+            <TextInput value={job.employerName} autoComplete="organization" onChange={(e) => set('employerName', e.target.value)} />
           </Field>
           <Field label="Role title" optional>
-            <TextInput value={job.roleTitle} disabled={isEdit} onChange={(e) => set('roleTitle', e.target.value)} />
+            <TextInput value={job.roleTitle} onChange={(e) => set('roleTitle', e.target.value)} />
           </Field>
         </FormSection>
 
@@ -122,7 +118,7 @@ export default function JobForm() {
             <Field label="Hourly wage" required>
               <MoneyInput suffix="/ hour" required value={job.hourlyRate} onChange={(e) => set('hourlyRate', e.target.value)} />
             </Field>
-            <Field label="Expected hours per week" required hint="Typical scheduled hours; actual hours come from paystubs.">
+            <Field label="Expected hours per week" required hint="Typical weekly hours used for the projection.">
               <AffixInput type="number" inputMode="decimal" min="0" step="0.001" suffix="hours" required
                 value={job.expectedWeeklyHours} onChange={(e) => set('expectedWeeklyHours', e.target.value)} />
             </Field>
@@ -140,7 +136,7 @@ export default function JobForm() {
           ) : null}
         </FormSection>
 
-        <FormSection step="3" title="Pay calendar" description="Used to generate expected paydays.">
+        <FormSection step="3" title="Expected pay" description="Enter the first pay date once. Future dates are calculated automatically.">
           <Field label="Pay frequency" required>
             <Select value={job.payFrequency} onChange={(e) => setJob((state) => ({ ...state, payFrequency: e.target.value,
               periodsPerYear: PERIODS_BY_FREQUENCY[e.target.value] }))}>
@@ -150,25 +146,15 @@ export default function JobForm() {
               <option value="monthly">Monthly</option>
             </Select>
           </Field>
-          <Field label="Pay periods per year" required hint="52 weekly, 26 every two weeks, 12 monthly. Change only if the employer’s calendar differs.">
-            <TextInput type="number" inputMode="numeric" min="1" max="53" value={job.periodsPerYear} onChange={(e) => set('periodsPerYear', e.target.value)} />
-          </Field>
-          <Field label="A payday in the employer’s calendar" required full
-            hint="Any real payday from this employer. Future pay dates are generated from it.">
+          <Field label="First pay date" required full
+            hint="The first expected payment from this employer. That date and the frequency are enough.">
             <TextInput type="date" value={job.firstPayDate} onChange={(e) => set('firstPayDate', e.target.value)} />
           </Field>
         </FormSection>
 
-        <FormSection step="4" title="Dates">
-          {!isEdit ? (
-            <Field label="Job start date" optional hint="First day of employment.">
-              <TextInput type="date" value={job.startDate} onChange={(e) => set('startDate', e.target.value)} />
-            </Field>
-          ) : null}
-          <Field label="Terms effective from" required full={isEdit}
-            error={dateError}
-            hint={isEdit ? `Latest saved terms start ${formatDate(existing.latestTerms?.effectiveFrom || existing.currentTermsEffectiveFrom)}. New terms can start ${formatDate(minimumDate)} or later.` : 'Usually the start date.'}>
-            <TextInput type="date" min={minimumDate} value={job.effectiveFrom} onChange={(e) => set('effectiveFrom', e.target.value)} />
+        <FormSection step="4" title="Start date">
+          <Field label="Job start date" optional hint="Future jobs start counting automatically on this date.">
+            <TextInput type="date" value={job.startDate} onChange={(e) => set('startDate', e.target.value)} />
           </Field>
         </FormSection>
       </div>
@@ -176,7 +162,7 @@ export default function JobForm() {
         <FormActions>
           <Link className="btn btn--ghost" to={returnTo}>Cancel</Link>
           <Button type="submit" variant="primary" icon="check" loading={busy} disabled={ended}>
-            {isEdit ? 'Save new pay terms' : 'Add job'}
+            {isEdit ? 'Save job' : 'Add job'}
           </Button>
         </FormActions>
       </div>

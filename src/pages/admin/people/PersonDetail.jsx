@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useAsync } from '../../../hooks/useAsync.js';
 import { useMutation } from '../../../hooks/useMutation.js';
 import { getAdminOverview, setPersonStatus } from '../../../lib/data/v2.js';
-import { findPerson, payTermsText } from '../../../lib/presentation/people.js';
+import { findPerson, payTermsText, payDetailsFor } from '../../../lib/presentation/people.js';
 import { PARTNERSHIP_LABELS, PAY_FREQUENCY_LABELS } from '../../../lib/presentation/labels.js';
 import { formatDate, money } from '../../../lib/presentation/format.js';
 import { PageHeader } from '../../../components/ui/PageHeader.jsx';
@@ -33,18 +33,18 @@ function Jobs({ person, refresh }) {
       <div className="cell-stack"><span className="cell-title">{job.employerName}</span><span className="cell-sub">{job.roleTitle || 'Role not set'}</span></div>
     ), renderMobile: (job) => job.employerName },
     { key: 'status', header: 'Status', mobile: 'badge', render: (job) => <StatusBadge status={job.status} /> },
-    { key: 'pay', header: 'Pay terms', mobile: 'meta', render: (job) => payTermsText(job) || <Badge tone="warn" dot={false}>Terms need review</Badge>,
-      renderMobile: (job) => payTermsText(job) || 'Terms need review' },
+    { key: 'pay', header: 'Pay details', mobile: 'meta', render: (job) => payTermsText(job) || <Badge tone="warn" dot={false}>Pay details missing</Badge>,
+      renderMobile: (job) => payTermsText(job) || 'Pay details missing' },
     { key: 'frequency', header: 'Paid', mobile: 'meta', secondary: true, render: (job) => PAY_FREQUENCY_LABELS[job.payFrequency] || '—' },
     { key: 'gross', header: 'Annual gross (est.)', align: 'right', mobile: 'amount', render: (job) => <span className="num">{money(job.annualGrossCents)}</span>,
       renderMobile: (job) => money(job.annualGrossCents) },
-    { key: 'since', header: 'Terms since', hideOnMobile: true, secondary: true, render: (job) => formatDate(job.currentTermsEffectiveFrom) },
+    { key: 'first', header: 'First pay date', hideOnMobile: true, secondary: true, render: (job) => formatDate(job.firstPayDate) },
     { key: 'actions', header: '', mobile: 'actions', render: (job) => <JobActions job={{ ...job, personName: person.displayName }} onChanged={refresh} from={`/admin/people/${person.ownerId}?tab=jobs`} compact /> },
   ];
   return (
-    <Card title="Jobs" icon="briefcase" padded={false} subtitle="Pay-term changes and status changes keep dated history."
+    <Card title="Jobs" icon="briefcase" padded={false} subtitle="Saved pay details drive projections automatically."
       actions={<ButtonLink to={`/admin/jobs/new?owner=${person.ownerId}`} state={{ from: `/admin/people/${person.ownerId}?tab=jobs` }} size="sm" variant="primary" icon="plus">Add job</ButtonLink>}>
-      <DataTable label={`${person.displayName} jobs`} columns={columns} rows={person.myJobs}
+      <DataTable label={`${person.displayName} jobs`} columns={columns} rows={person.myJobs.map(payDetailsFor)}
         emptyIcon="briefcase" emptyTitle="No jobs yet" emptyMessage="Add this person’s first job to start estimating."
         emptyAction={<ButtonLink to={`/admin/jobs/new?owner=${person.ownerId}`} variant="primary" icon="plus">Add job</ButtonLink>} />
     </Card>
