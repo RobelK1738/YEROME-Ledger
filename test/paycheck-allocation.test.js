@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { projectPerson, ownerStatementDto } from '../src/lib/finance-v2/projection.js';
+import { projectPerson, ownerStatementDto, adminStatementDto } from '../src/lib/finance-v2/projection.js';
 import { incomeForecast, ownerForecastDto } from '../src/lib/finance-v2/forecast.js';
-import { nextJobPaychecks, paycheckAllocation, allocateDeposit } from '../src/lib/presentation/paycheck-allocation.js';
+import { nextJobPaychecks, paycheckAllocation, allocateDeposit, yeromePaycheckAllocation, allocateYeromeReceipt } from '../src/lib/presentation/paycheck-allocation.js';
 
 const owner = { id: 'owner', display_name: 'Owner', status: 'active', state: 'TX', filing_status: 'single', v2_partnership: 'DIRECT_2_WAY' };
 const dates = ['2026-11-13', '2026-11-13', '2026-11-27', '2026-11-27', '2026-12-04', '2026-12-11', '2026-12-11'];
@@ -70,4 +70,73 @@ test('incomplete or loss projections cannot produce transfer instructions; refer
   assert.equal(paycheckAllocation({ ...person, myShareMonthlyCents: -100 }, paycheck), null);
   assert.deepEqual(paycheckAllocation({ ...person, commissionIncomeMonthlyCents: 40000 }, paycheck), plan);
   assert.deepEqual(nextJobPaychecks({}), []);
+});
+
+
+test('the US Person transfer equals the YEROME receipt, which funds actual costs exactly once', () => {
+  const admin = adminStatementDto(projection);
+  for (const row of nextJobPaychecks(person)) {
+    const sent = paycheckAllocation(person, row);
+    const receipt = yeromePaycheckAllocation(admin, row);
+    assert.equal(sent.yeromeCents, receipt.receiptCents);
+    assert.equal(receipt.receiptCents, receipt.actualCostCents + receipt.commissionCents + receipt.gangCents + receipt.retainedCents);
+    assert.equal(receipt.costParts.reduce((sum, line) => sum + line.cents, 0), receipt.actualCostCents);
+    assert.equal(sent.grossCents, sent.taxCents + sent.ownerCents + receipt.actualCostCents + receipt.commissionCents + receipt.gangCents + receipt.retainedCents);
+    assert.equal('taxCents' in receipt, false);
+    assert.equal('ownerCents' in receipt, false);
+  }
+  // Independent cent fixtures from the seven-job, $14/hour paycheck case.
+  const first = yeromePaycheckAllocation(admin, paycheck);
+  assert.deepEqual([plan.grossCents, plan.taxCents, plan.ownerCents, first.receiptCents], [112000, 30037, 20932, 61031]);
+  assert.deepEqual([first.actualCostCents, first.commissionCents, first.gangCents, first.retainedCents], [18324, 0, 8196, 34511]);
+  assert.deepEqual(first.costParts.map((line) => line.cents), [7436, 3452, 3718, 1859, 1859]);
+});
+
+test('receipt allocation reserves referral commissions and respects actual apartment overrides', () => {
+  const projected = projectPerson({ owner: { ...owner, v2_partnership: 'MIKI_REFERRAL_2_WAY' }, jobs,
+    apartment: { actual_monthly_cents: 80000, quoted_monthly_cents: 110000 }, asOf: '2026-10-31' });
+  const admin = adminStatementDto(projected);
+  const value = yeromePaycheckAllocation(admin, paycheck);
+  assert.equal(admin.actualCostMonthlyCents, 360000);
+  assert.equal(admin.agreedChargesMonthlyCents, 915000);
+  assert.equal(admin.commissionMonthlyCents, 140000);
+  assert.ok(value.commissionCents > 0);
+  assert.equal(value.receiptCents, value.actualCostCents + value.commissionCents + value.gangCents + value.retainedCents);
+  assert.equal(value.costParts.reduce((sum, line) => sum + line.cents, 0), value.actualCostCents);
+});
+
+test('cash receipt previews adjust the remainder, flag shortfalls and do not turn overpayments into profit', () => {
+  const value = yeromePaycheckAllocation(adminStatementDto(projection), paycheck);
+  for (const received of [value.receiptCents, value.receiptCents - 1000, value.receiptCents + 1000]) {
+    const preview = allocateYeromeReceipt(value, received);
+    assert.equal(received, preview.actualCostCents + preview.commissionCents + preview.gangCents + preview.retainedCents + preview.unallocatedCents);
+    assert.equal(preview.actualCostCents, value.actualCostCents);
+    assert.equal(preview.retainedCents, value.retainedCents - Math.max(0, value.receiptCents - received));
+    assert.equal(preview.unallocatedCents, Math.max(0, received - value.receiptCents));
+  }
+  const short = allocateYeromeReceipt(value, 0);
+  assert.equal(short.retainedCents, null);
+  assert.equal(short.shortfallCents, value.actualCostCents + value.commissionCents + value.gangCents);
+  assert.throws(() => allocateYeromeReceipt(value, -1), /nonnegative/);
+  assert.throws(() => allocateYeromeReceipt(value, 1.1), /nonnegative/);
+});
+
+test('missing or inconsistent internal cost inputs never produce a fabricated receipt allocation', () => {
+  const admin = adminStatementDto(projection);
+  assert.equal(yeromePaycheckAllocation(person, paycheck), null);
+  assert.equal(yeromePaycheckAllocation({ ...admin, actualCostMonthlyCents: null }, paycheck), null);
+  assert.equal(yeromePaycheckAllocation({ ...admin, operatingCostBreakdown: [{ key: 'bad', monthlyCents: 1 }] }, paycheck), null);
+  assert.throws(() => allocateDeposit(plan, { depositCents: plan.grossCents, withheldCents: 1 }), /exceeds/);
+});
+
+test('a profitable US Person split can still leave YEROME with an operating funding gap', () => {
+  const projected = projectPerson({ owner, jobs,
+    apartment: { actual_monthly_cents: 2000000, quoted_monthly_cents: 90000 }, asOf: '2026-10-31' });
+  const admin = adminStatementDto(projected);
+  const receipt = yeromePaycheckAllocation(admin, paycheck);
+  assert.ok(paycheckAllocation(ownerStatementDto(projected), paycheck).ownerCents > 0);
+  assert.ok(receipt.retainedCents < 0);
+  const distribution = allocateYeromeReceipt(receipt, receipt.receiptCents);
+  assert.equal(distribution.retainedCents, null);
+  assert.equal(distribution.shortfallCents, -receipt.retainedCents);
 });

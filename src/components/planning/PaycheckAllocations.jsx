@@ -5,8 +5,9 @@ import { money, formatDate, plural } from '../../lib/presentation/format.js';
 import { Field, MoneyInput, Select } from '../ui/Field.jsx';
 import { Button } from '../ui/Button.jsx';
 import { Notice } from '../ui/Notice.jsx';
+import { YeromeReceipt } from './YeromeReceipt.jsx';
 
-function Paycheck({ person, paycheck }) {
+function UsPersonPaycheck({ person, paycheck }) {
   const plan = paycheckAllocation(person, paycheck);
   const [open, setOpen] = useState(false);
   const [deposit, setDeposit] = useState('');
@@ -17,7 +18,6 @@ function Paycheck({ person, paycheck }) {
     event.preventDefault();
     try {
       const result = allocateDeposit(plan, { depositCents: dollarsToCents(deposit), withheldCents: dollarsToCents(withheld) });
-      if (result.depositCents + result.withheldCents > plan.grossCents) throw new Error('Deposit plus taxes withheld exceeds the expected gross. Ask Admin to revise the plan if gross pay changed.');
       setPreview(result); setError('');
     } catch (failure) { setPreview(null); setError(failure.message); }
   }
@@ -59,7 +59,7 @@ function Paycheck({ person, paycheck }) {
   </article>;
 }
 
-export function PaycheckAllocations({ person }) {
+export function PaycheckAllocations({ person, admin = false, commissions = [] }) {
   const [date, setDate] = useState('next');
   const upcoming = person.forecast?.upcoming || [];
   const dates = [...new Set(upcoming.map((row) => row.date))].sort();
@@ -68,20 +68,20 @@ export function PaycheckAllocations({ person }) {
   const scheduledJobs = new Set(upcoming.map((row) => row.jobId));
   const missing = person.myJobs.filter((job) => job.status === 'active' && !scheduledJobs.has(job.id));
   return <>
-    <div className="allocation-toolbar"><div><h2>Allocate each paycheck</h2><p>{selectedDate === 'next' ? 'The next expected paycheck for each job.' : `${plural(rows.length, 'paycheck')} expected on this date.`}</p></div>
-      {dates.length ? <Field label="Pay date"><Select value={selectedDate} onChange={(e) => setDate(e.target.value)} options={[{ value: 'next', label: 'Next paycheck per job' }, ...dates.map((value) => ({ value, label: formatDate(value) }))]} /></Field> : null}
+    <div className="allocation-toolbar"><div><h2>{admin ? 'Allocate each receipt' : 'Allocate each paycheck'}</h2><p>{selectedDate === 'next' ? (admin ? 'Expected transfers from the US Person for each job’s next paycheck.' : 'The next expected paycheck for each job.') : `${plural(rows.length, 'paycheck')} expected on this date.`}</p></div>
+      {dates.length ? <Field label={admin ? "Source pay date" : "Pay date"}><Select value={selectedDate} onChange={(e) => setDate(e.target.value)} options={[{ value: 'next', label: 'Next paycheck per job' }, ...dates.map((value) => ({ value, label: formatDate(value) }))]} /></Field> : null}
     </div>
-    <p className="allocation-intro">Start with the estimate. If the employer has withheld taxes, use the deposit amount and tax already withheld to calculate the remaining reserve.</p>
-    <div className="paycheck-list">{rows.map((paycheck) => <Paycheck key={`${paycheck.jobId}:${paycheck.date}`} person={person} paycheck={paycheck} />)}</div>
+    <p className="allocation-intro">{admin ? 'Start with the transfer expected from the US Person. Allocate it to actual operating costs, referral commissions, Gang allocation and YEROME’s remainder.' : 'Start with the estimate. If the employer has withheld taxes, use the deposit amount and tax already withheld to calculate the remaining reserve.'}</p>
+    <div className="paycheck-list">{rows.map((paycheck) => admin ? <YeromeReceipt key={`${paycheck.jobId}:${paycheck.date}`} person={person} paycheck={paycheck} commissions={commissions} /> : <UsPersonPaycheck key={`${paycheck.jobId}:${paycheck.date}`} person={person} paycheck={paycheck} />)}</div>
     {!rows.length ? <p className="statement-input-note">No pay dates in the current forecast. Admin can add the job’s first pay date and pay frequency.</p> : null}
     {missing.length ? <p className="statement-note">No upcoming date in the forecast for: {missing.map((job) => job.employerName).join(', ')}.</p> : null}
-    <p className="statement-method">These are planning instructions. Tax uses the 2026 annual wage model. Referral income is separate from employer paychecks and follows Admin’s notes.</p>
+    <p className="statement-method">{admin ? 'These are receipt allocation estimates from saved actual cost inputs. The US Person’s tax reserve and take-home are allocated before this transfer reaches YEROME. Receipt previews are not bank verification.' : 'These are planning instructions. Tax uses the 2026 annual wage model. Referral income is separate from employer paychecks and follows Admin’s notes.'}</p>
   </>;
 }
 
-export function AllocationNotes({ person, onEdit }) {
+export function AllocationNotes({ person, onEdit, title = 'From Admin' }) {
   if (!person.allocationPlan?.instructions && !onEdit) return null;
-  return <section className="allocation-notes"><div className="statement-section-heading"><h2>From Admin</h2>{onEdit ? <button type="button" className="statement-text-button" onClick={onEdit}>Edit instructions</button> : null}</div>
+  return <section className="allocation-notes"><div className="statement-section-heading"><h2>{title}</h2>{onEdit ? <button type="button" className="statement-text-button" onClick={onEdit}>Edit instructions</button> : null}</div>
     <p className="preserve-lines">{person.allocationPlan?.instructions || (onEdit ? 'Add account destinations or other instructions for this owner.' : 'No additional instructions.')}</p>
   </section>;
 }
