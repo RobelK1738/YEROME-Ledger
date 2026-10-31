@@ -47,8 +47,8 @@ export function incomeForecast({ owner, jobs, apartment, asOf, horizonDays = 90 
   const scale = (value) => roundRatio(value, nextNetCents, projection.monthlyAfterTaxCents);
   let allocation = null;
   if (s && nextNetCents > 0 && projection.monthlyAfterTaxCents > 0) {
-    const ownerShareCents = scale(s.personShareCents);
     const chargesCents = scale(s.quotedCostCents);
+    const ownerShareCents = roundRatio(nextNetCents - chargesCents, 1, 2);
     const actualCostCents = scale(s.actualCostCents);
     const commissionCents = scale(s.commissionCents);
     const gangCutCents = scale(s.gangCutCents);

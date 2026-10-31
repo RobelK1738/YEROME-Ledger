@@ -1,3 +1,4 @@
+import { PACKAGE_V1 } from '../../src/lib/finance-v2/index.js';
 import { verifiedPrincipal, sendApiError, allPages } from '../_lib/v2.js';
 import { loadPlanningPerson, planningDto, loadCommissionProjections } from '../_lib/planning.js';
 
@@ -21,7 +22,7 @@ export default async function handler(req, res) {
     }
     const current = people.filter((person) => person.personStatus !== 'archived');
     res.setHeader('Cache-Control', 'private, no-store');
-    return res.status(200).json({ asOf, basis: 'estimated monthly run rate', commissions,
+    return res.status(200).json({ packageAssumptions: PACKAGE_V1, gangCutDescription: '10% of after-tax income', asOf, basis: 'estimated monthly run rate', commissions,
       totalMonthlyProfitCents: current.reduce((sum, row) => sum + (row.yeromeTakeHomeMonthlyCents || 0), 0),
       people,
       unverifiedCount: current.filter((row) => !row.projectionAvailable).length });

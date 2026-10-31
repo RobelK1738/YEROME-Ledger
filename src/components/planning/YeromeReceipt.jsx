@@ -38,7 +38,7 @@ export function YeromeReceipt({ person, paycheck, commissions = [] }) {
       <ol className={`paycheck-steps receipt-steps${allocation.shortfallCents ? ' paycheck-steps--short' : ''}`}>
         <li><span className="paycheck-step-label">Operating costs</span><strong>{money(allocation.actualCostCents)}</strong><small>Actual cost inputs</small></li>
         {plan.commissionCents > 0 ? <li><span className="paycheck-step-label">Referral commission</span><strong>{money(allocation.commissionCents)}</strong><small>{recipients.length ? `Reserve for ${recipients.join(', ')}` : 'Reserve pending recipient assignment'}</small></li> : null}
-        <li><span className="paycheck-step-label">Gang allocation</span><strong>{money(allocation.gangCents)}</strong><small>10% of the US Person’s estimated after-tax income</small></li>
+        <li><span className="paycheck-step-label">Gang allocation</span><strong>{money(allocation.gangCents)}</strong><small>Admin’s planned allocation</small></li>
         <li><span className="paycheck-step-label">YEROME retains</span><strong>{money(allocation.retainedCents)}</strong><small>{allocation.shortfallCents ? 'Funding gap' : 'Remainder after allocations'}</small></li>
       </ol>
       <details className="paycheck-explanation"><summary>Actual cost breakdown</summary><dl className="fund-lines">

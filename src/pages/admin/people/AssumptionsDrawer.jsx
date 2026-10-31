@@ -10,7 +10,7 @@ import { useMutation } from '../../../hooks/useMutation.js';
 
 function initial(person) {
   return { partnership: person?.partnership || 'DIRECT_2_WAY',
-    actual: String((person?.apartmentActualMonthlyCents ?? 65000) / 100),
+    actual: person?.apartmentActualMonthlyCents == null ? '' : String(person.apartmentActualMonthlyCents / 100),
     charge: String((person?.apartmentQuotedMonthlyCents ?? 90000) / 100) };
 }
 export function AssumptionsDrawer({ open, person, onClose, onSaved }) {

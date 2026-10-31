@@ -6,7 +6,7 @@
   "description": "YEROME Ledger — financial and operations tracker for YEROME's outsourcing business.",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/check-browser-privacy.mjs",
     "preview": "vite preview",
     "test": "node --test test/*.test.js",
     "bootstrap:admin": "node scripts/bootstrap-admin.mjs",

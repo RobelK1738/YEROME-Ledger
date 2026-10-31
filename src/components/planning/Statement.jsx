@@ -79,7 +79,7 @@ export function Breakdown({ person, people, admin = false, commissions = [] }) {
             details={commissions.filter((source) => source.monthlyCents > 0).map((source) => ({ key: source.referralId,
               label: `${source.referrerName} · ${source.referredName}`, hint: `${plural(source.activeJobCount, 'job')} × ${money(source.ratePerJobCents)} / month`,
               month: source.monthlyCents, biweekly: roundRatio(source.monthlyCents, 12, 26), negative: true }))} /> : null}
-          {row('gang', 'Gang allocation · 10%', { negative: true })}
+          {row('gang', 'Gang allocation', { negative: true })}
           {row('yerome', 'YEROME keeps', { kind: 'total' })}
         </> : <>
           {row('profit', 'Profit to split', { kind: 'subtotal' })}

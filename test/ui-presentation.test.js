@@ -53,10 +53,12 @@ test('editing a job uses saved inputs without an effective-date requirement', ()
   assert.deepEqual(jobStatusPayload('job-1', 'pause', '2026-10-22'), { jobId: 'job-1', action: 'pause', effectiveFrom: '2026-10-22' });
 });
 
-test('agreement prefill and payload keep apartment defaults and prospective dates', () => {
+test('agreement prefill uses server apartment costs and preserves zero and prospective dates', () => {
   const form = agreementFormFor({ ownerId: 'o', partnership: 'DIRECT_2_WAY', agreementVerifiedAt: null,
-    apartmentActualMonthlyCents: null, apartmentQuotedMonthlyCents: null, currentAgreementEffectiveFrom: '2026-01-01' }, '2026-10-22');
+    apartmentActualMonthlyCents: 65000, apartmentQuotedMonthlyCents: null, currentAgreementEffectiveFrom: '2026-01-01' }, '2026-10-22');
   assert.equal(form.actualMonthly, '650');
+  assert.equal(agreementFormFor({ apartmentActualMonthlyCents: 0 }, '2026-10-22').actualMonthly, '0');
+  assert.equal(agreementFormFor({}, '2026-10-22').actualMonthly, '');
   assert.equal(form.quotedMonthly, '900');
   assert.equal(form.effectiveFrom, '2026-10-23');
   assert.deepEqual(agreementPayload(form), { ownerId: 'o', partnership: 'DIRECT_2_WAY', agreementReference: '',

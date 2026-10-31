@@ -4,7 +4,10 @@ import { Card } from '../../components/ui/Card.jsx';
 import { DescriptionList } from '../../components/ui/DescriptionList.jsx';
 import { Notice } from '../../components/ui/Notice.jsx';
 import { Badge } from '../../components/ui/Badge.jsx';
-import { PACKAGE_V1 } from '../../lib/finance-v2/index.js';
+import { useAsync } from '../../hooks/useAsync.js';
+import { getAdminOverview } from '../../lib/data/v2.js';
+import { PageSkeleton } from '../../components/ui/Loading.jsx';
+import { ErrorState } from '../../components/ui/ErrorState.jsx';
 import { TAX_CONFIG_2026 } from '../../lib/calculations/taxConfig2026.js';
 import { FILING_STATUS_OPTIONS } from '../../lib/presentation/labels.js';
 import { money } from '../../lib/presentation/format.js';
@@ -13,11 +16,15 @@ const pct = (rate) => `${Number((rate * 100).toFixed(2))}%`;
 const perMonth = (cents) => <>{money(cents)} <span className="muted">/ month</span></>;
 
 export default function Configuration() {
+  const { data, loading, error, refresh } = useAsync(getAdminOverview, []);
+  if (loading) return <PageSkeleton label="Loading configuration…" />;
+  if (error || !data?.packageAssumptions) return <ErrorState error={error || 'Configuration unavailable.'} onRetry={refresh} />;
+  const packageAssumptions = data.packageAssumptions;
   const single = TAX_CONFIG_2026.single;
   return <>
     <PageHeader title="Configuration"
       subtitle="The versioned assumptions behind every estimate. Values here are read-only: they are defined in the reviewed calculation code."
-      meta={<div className="badge-row"><Badge tone="brand" dot={false}>Calculation {PACKAGE_V1.version}</Badge><Badge tone="muted" dot={false}>Tax {single.version}</Badge></div>} />
+      meta={<div className="badge-row"><Badge tone="brand" dot={false}>Calculation {packageAssumptions.version}</Badge><Badge tone="muted" dot={false}>Tax {single.version}</Badge></div>} />
 
     <Notice tone="info" title="Where to change things">
       Person-specific apartment charges and planning assumptions are edited from each <Link to="/admin/people">US Person</Link>’s
@@ -27,18 +34,18 @@ export default function Configuration() {
     <div className="grid-2">
       <Card title="Planning charges" icon="file" subtitle="Apartment and service charges used to calculate the owner’s projected split.">
         <DescriptionList items={[
-          { label: 'Direct partnership · per active job', value: perMonth(PACKAGE_V1.directVariableQuotedCents), basis: 'contractual' },
-          { label: 'Referred partnership · per active job', value: perMonth(PACKAGE_V1.referredVariableQuotedCents), basis: 'contractual' },
-          { label: 'Apartment · one per US Person (default)', value: perMonth(PACKAGE_V1.fixedQuotedCents), basis: 'contractual' },
+          { label: 'Direct partnership · per active job', value: perMonth(packageAssumptions.directVariableQuotedCents), basis: 'contractual' },
+          { label: 'Referred partnership · per active job', value: perMonth(packageAssumptions.referredVariableQuotedCents), basis: 'contractual' },
+          { label: 'Apartment · one per US Person (default)', value: perMonth(packageAssumptions.fixedQuotedCents), basis: 'contractual' },
           { label: 'Projected owner share', value: '50% of after-tax income less charges' },
         ]} />
       </Card>
       <Card title="Internal cost assumptions" icon="shield" subtitle="YEROME’s real costs and internal allocations. Never shown to US Persons.">
         <DescriptionList items={[
-          { label: 'Operating spend · per active job', value: perMonth(PACKAGE_V1.variableActualCents), basis: 'internal' },
-          { label: 'Apartment spend · one per US Person (default)', value: perMonth(PACKAGE_V1.fixedActualCents), basis: 'internal' },
-          { label: 'Referrer commission · per eligible active job', value: perMonth(PACKAGE_V1.referredCommissionPerJobCents), basis: 'internal' },
-          { label: 'Gang Cut', value: '10% of after-tax income', basis: 'internal' },
+          { label: 'Operating spend · per active job', value: perMonth(packageAssumptions.variableActualCents), basis: 'internal' },
+          { label: 'Apartment spend · one per US Person (default)', value: perMonth(packageAssumptions.fixedActualCents), basis: 'internal' },
+          { label: 'Referrer commission · per eligible active job', value: perMonth(packageAssumptions.referredCommissionPerJobCents), basis: 'internal' },
+          { label: 'Gang Cut', value: data.gangCutDescription, basis: 'internal' },
         ]} />
       </Card>
     </div>

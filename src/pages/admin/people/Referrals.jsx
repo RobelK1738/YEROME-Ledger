@@ -42,7 +42,7 @@ function ReferralDrawer({ open, onClose, people, referrals, initial, onSaved }) 
 
   return (
     <Drawer open={open} onClose={onClose} title={form.replaceReferralId ? 'Replace referral' : 'Record referral'}
-      description="$200 per eligible active referred job for each full calendar month. Used for the monthly commission projection."
+      description="Commission for each eligible active referred job. The configured rate is used for the monthly projection."
       footer={<>
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
         <Button type="submit" form={FORM_ID} variant="primary" loading={busy}>Save referral</Button>
