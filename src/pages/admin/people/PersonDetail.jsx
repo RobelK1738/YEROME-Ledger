@@ -14,18 +14,11 @@ import { ErrorState } from '../../../components/ui/ErrorState.jsx';
 import { EmptyState } from '../../../components/ui/EmptyState.jsx';
 import { Badge, StatusBadge } from '../../../components/ui/Badge.jsx';
 import { Button, ButtonLink } from '../../../components/ui/Button.jsx';
-import { Tabs, TabPanel } from '../../../components/ui/Tabs.jsx';
 import { useConfirm } from '../../../components/ui/Feedback.jsx';
 import { JobActions } from '../jobs/JobActions.jsx';
 import { AssumptionsDrawer } from './AssumptionsDrawer.jsx';
 import { AllocationEditor } from '../../../components/planning/AllocationEditor.jsx';
-import { ProjectionStory, CommissionSources } from '../../../components/planning/ProjectionStory.jsx';
-
-const TABS = [
-  { id: 'summary', label: 'Financial story', icon: 'overview' },
-  { id: 'jobs', label: 'Jobs & inputs', icon: 'briefcase' },
-  { id: 'referrals', label: 'Referrals', icon: 'link' },
-];
+import { Breakdown, NextFund, CommissionDetails } from '../../../components/planning/Statement.jsx';
 
 function Jobs({ person, refresh }) {
   const columns = [
@@ -78,13 +71,13 @@ function Referrals({ person, referrals }) {
 
 export default function PersonDetail() {
   const { ownerId } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const { data, loading, error, refresh } = useAsync(getAdminOverview, []);
   const [assumptionsOpen, setAssumptionsOpen] = useState(false);
   const [allocationOpen, setAllocationOpen] = useState(false);
   const confirm = useConfirm();
   const { run, busy } = useMutation();
-  const tab = TABS.some((item) => item.id === searchParams.get('tab')) ? searchParams.get('tab') : 'summary';
+
   const back = { to: '/admin/people', label: 'Owners' };
   if (loading) return <PageSkeleton label="Loading owner projection…" />;
   if (error) return <><PageHeader back={back} title="Owner" /><ErrorState error={error} onRetry={refresh} /></>;
@@ -99,16 +92,13 @@ export default function PersonDetail() {
     await run(() => setPersonStatus(ownerId, status), { success: 'Owner status updated.', onSuccess: refresh });
   }
   return <>
-    <PageHeader back={back} title={`${person.displayName}’s financial story`}
-      meta={<div className="badge-row"><StatusBadge kind="person" status={person.personStatus} /><Badge tone="brand" dot={false}>{PARTNERSHIP_LABELS[person.partnership] || 'Choose a partnership'}</Badge></div>}
-      actions={<><Button variant="secondary" onClick={() => setAssumptionsOpen(true)}>Edit planning assumptions</Button><ButtonLink to={`/admin/jobs/new?owner=${ownerId}`} variant="primary" icon="plus">Add job</ButtonLink></>} />
-    <Tabs label="Owner sections" idPrefix="person" value={tab} tabs={TABS} onChange={(id) => setSearchParams(id === 'summary' ? {} : { tab: id })} />
-    <TabPanel id={tab} idPrefix="person">
-      {tab === 'summary' ? <><ProjectionStory person={person} admin allocationAction={<Button variant="primary" size="sm" onClick={() => setAllocationOpen(true)}>Edit next-fund plan</Button>} />
-        {sources.length ? <CommissionSources sources={sources} admin /> : null}</> : null}
-      {tab === 'jobs' ? <Jobs person={person} refresh={refresh} /> : null}
-      {tab === 'referrals' ? <Referrals person={person} referrals={referrals} /> : null}
-    </TabPanel>
+    <PageHeader back={back} title={person.displayName} subtitle={`${person.activeJobCount} jobs · ${PARTNERSHIP_LABELS[person.partnership] || 'Choose a partnership'}`}
+      actions={<><Button variant="secondary" onClick={() => setAssumptionsOpen(true)}>Costs & split</Button><ButtonLink to={`/admin/jobs/new?owner=${ownerId}`} variant="primary" icon="plus">Add job</ButtonLink></>} />
+    <Breakdown person={person} admin />
+    <NextFund person={person} admin onEdit={() => setAllocationOpen(true)} />
+    <CommissionDetails sources={sources} />
+    <details className="statement-disclosure" open={searchParams.get('tab') === 'jobs'}><summary>Manage jobs ({person.myJobs.length})</summary><Jobs person={person} refresh={refresh} /></details>
+    <details className="statement-disclosure"><summary>Referral links</summary><Referrals person={person} referrals={referrals} /></details>
     <details className="disclosure"><summary>Account access</summary><div className="btn-group">
       <Button variant="secondary" disabled={busy} onClick={() => changeStatus(person.personStatus === 'active' ? 'inactive' : 'active')}>{person.personStatus === 'active' ? 'Pause sign-in' : 'Reactivate'}</Button>
       {person.personStatus !== 'archived' ? <Button variant="ghost-danger" disabled={busy} onClick={() => changeStatus('archived')}>Archive owner</Button> : null}
