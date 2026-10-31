@@ -26,16 +26,23 @@ export function emptyJobForm(today, ownerId = '') {
 
 /** Prefill a pay-terms change; the new terms start the day after the latest version. */
 export function jobFormFromExisting(job, today) {
+  const latest = job.latestTerms;
   return {
     jobId: job.id, ownerId: job.ownerId, employerName: job.employerName,
-    roleTitle: job.roleTitle || '', mode: job.compensationMode || 'hourly',
-    hourlyRate: dollarsInput(job.hourlyRateCents),
-    expectedWeeklyHours: String(job.expectedWeeklyHours ?? 40),
-    annualSalary: dollarsInput(job.annualGrossCents),
-    payFrequency: job.payFrequency || 'biweekly', periodsPerYear: String(job.periodsPerYear || 26),
-    firstPayDate: job.firstPayDate || '', startDate: '',
-    effectiveFrom: addDaysISO(laterOf(job.currentTermsEffectiveFrom, today), 1),
+    roleTitle: job.roleTitle || '', mode: latest?.mode || job.compensationMode || 'hourly',
+    hourlyRate: dollarsInput(latest ? latest.hourlyRateCents : job.hourlyRateCents),
+    expectedWeeklyHours: String((latest ? latest.expectedWeeklyHours : job.expectedWeeklyHours) ?? 40),
+    annualSalary: dollarsInput(latest ? latest.annualSalaryCents : job.annualGrossCents),
+    payFrequency: latest?.payFrequency || job.payFrequency || 'biweekly',
+    periodsPerYear: String(latest?.periodsPerYear || job.periodsPerYear || 26),
+    firstPayDate: latest?.firstPayDate || job.firstPayDate || '', startDate: '',
+    effectiveFrom: laterOf(minimumJobTermsDate(job, today), addDaysISO(today, 1)),
   };
+}
+
+export function minimumJobTermsDate(job, today) {
+  const latestDate = job.latestTerms?.effectiveFrom || job.currentTermsEffectiveFrom;
+  return laterOf(latestDate ? addDaysISO(latestDate, 1) : null, today);
 }
 
 export function jobPayload(job) {

@@ -79,6 +79,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Unsupported job action.' });
   } catch (error) {
     console.error('Admin job operation failed', error?.code || 'unknown');
+    if (error?.code === 'P0001' && error.message === 'New terms must start prospectively after current terms') {
+      return res.status(400).json({ error: 'New pay terms must start after the latest saved terms and cannot be backdated. Reload the form to see the earliest allowed date.' });
+    }
     return res.status(400).json({ error: 'Could not save the job. Review terms and dates.' });
   }
 }

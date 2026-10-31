@@ -1,5 +1,6 @@
 import { verifiedPrincipal, loadPersonProjection, sendApiError } from '../_lib/v2.js';
 import { adminStatementDto } from '../../src/lib/finance-v2/projection.js';
+import { attachJobEditingTerms } from '../_lib/jobTerms.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed.' });
@@ -23,7 +24,7 @@ export default async function handler(req, res) {
       calculationVersion: people[0]?.calculationVersion || null,
       basis: 'estimated monthly run rate',
       totalMonthlyProfitCents,
-      people,
+      people: await attachJobEditingTerms(principal.db, people),
       unverifiedCount: currentPeople.filter((person) => !person.projectionAvailable).length,
     });
   } catch (error) {
