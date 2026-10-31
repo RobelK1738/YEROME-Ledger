@@ -41,18 +41,26 @@ per year; they are not half-month totals. Exact-cent residuals stay in the final
 share, and unknown inputs stay unavailable rather than becoming zero.
 Job sources, tax components and cost categories expand inside their totals.
 Owner charges and Admin operating costs are separate allowlisted breakdowns.
-Each job's paycheck allocation shows the estimated tax reserve, the amount to
-send to YEROME (service charges plus its share of profit), and the owner share.
+The US Person's allocation starts with the employer paycheck: reserve remaining
+tax, send service charges plus YEROME's share, and keep the remainder. Admin's
+allocation starts with that same transfer as YEROME's expected receipt. It then
+reserves actual operating costs, referral commissions and Gang allocation;
+YEROME retains the remainder. The handoff amount is identical in both views.
+Personal taxes and the owner share are not deducted again from YEROME's receipt.
 Monthly amounts are spread across paychecks in proportion to expected after-tax
-income, matching the existing forecast allocation basis. The default view shows
-one next paycheck per job; a date selector uses the existing 90-day forecast.
-A local deposit preview credits employer tax withholding against the estimated
-tax reserve once. Other payroll deductions reduce the remaining take-home amount.
-Overwithholding never creates a negative reserve or an assumed refund. A deposit
-that cannot cover tax and the planned YEROME amount shows a funding gap instead
-of a take-home instruction. The preview keeps the saved gross-pay plan; changed
-gross pay requires an Admin revision. Deposit inputs are not persisted or marked
-paid, and the feature does not execute transfers.
+income, matching the existing forecast basis. Actual operating cost items sum
+to the cost reserve, and final rounding cents stay in the residual profit.
+The default view shows one next paycheck per job; a date selector uses the
+existing 90-day forecast. US Person deposit previews credit employer withholding
+once. Other payroll deductions reduce take-home; overwithholding creates no
+negative reserve or assumed refund. Cash shortfalls suppress take-home or
+retained-profit instructions. YEROME receipt previews keep the planned expense
+reserves, reduce available profit for a smaller receipt, and leave excess cash
+unallocated for review rather than automatically treating it as profit.
+Both previews use saved assumptions, not confirmed bank or invoice data. Inputs
+are not persisted or marked paid/received; the feature does not execute transfers.
+The US Person's preview keeps the gross-pay plan, so changed gross pay needs a
+plan revision. Shared Admin notes are labeled as instructions for the US Person.
 The next 90 days of expected income use the configured 2026 Texas tax
 assumptions, including dates beyond the calendar year.
 

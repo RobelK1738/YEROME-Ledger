@@ -9,7 +9,7 @@ export default function OwnerAllocations() {
   const { data: person, loading, error, refresh } = useAsync(getMyStatement, []);
   if (loading) return <PageSkeleton label="Loading paycheck allocations…" />;
   if (error) return <ErrorState error={error} onRetry={refresh} />;
-  return <><PageHeader title="Paycheck allocation" subtitle={person.displayName} />
+  return <><PageHeader title="US Person allocation" subtitle={person.displayName} />
     <AllocationNotes person={person} />
     <PaycheckAllocations person={person} />
   </>;
