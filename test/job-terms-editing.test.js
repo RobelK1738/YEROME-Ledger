@@ -2,11 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import handler from '../api/index.js';
 import { adminClient } from '../server/_lib/supabaseAdmin.js';
-import { loadPlanningPerson } from '../server/_lib/planning.js';
+import { loadPlanningPerson, loadCommissionProjections } from '../server/_lib/planning.js';
 import { jobFormFromExisting, jobPayload } from '../src/lib/presentation/forms.js';
 import { payDetailsFor, payTermsText } from '../src/lib/presentation/people.js';
 
-test('one job setup supplies all pay details; future jobs need no review or activation', async (t) => {
+test('one job setup supplies all pay details; future jobs immediately show the full income story', async (t) => {
   const settings = { SUPABASE_URL: 'http://127.0.0.1:19999', SUPABASE_SERVICE_ROLE_KEY: 'synthetic-key', ADMIN_EMAIL: 'robiemelaku@gmail.com' };
   const previous = Object.fromEntries(Object.keys(settings).map((key) => [key, process.env[key]]));
   Object.assign(process.env, settings);
@@ -23,6 +23,7 @@ test('one job setup supplies all pay details; future jobs need no review or acti
     session_id: '11111111-1111-1111-1111-111111111111', iat: Math.floor(Date.now() / 1000),
     app_metadata: { role } })).toString('base64url')}.synthetic`;
   const saves = [];
+  const referrals = [];
   t.mock.method(globalThis, 'fetch', async (input, init) => {
     const url = new URL(input);
     assert.equal(url.origin, settings.SUPABASE_URL);
@@ -32,8 +33,10 @@ test('one job setup supplies all pay details; future jobs need no review or acti
       return Response.json({ id: role, email: role === 'admin' ? settings.ADMIN_EMAIL : 'owner@example.test', app_metadata: { role } });
     }
     if (table === 'v2_authorize_session') return Response.json(JSON.parse(init.body).p_user);
+    if (table === 'referrals') return Response.json(referrals);
+    if (table === 'owners' && url.searchParams.get('id') === 'eq.referrer') return Response.json({ ...owner, id: 'referrer', display_name: 'Miki' });
     if (table === 'owners') return Response.json(url.searchParams.has('id') || url.searchParams.has('auth_user_id') ? owner : [owner]);
-    if (table === 'jobs') return Response.json([record]);
+    if (table === 'jobs') return Response.json(url.searchParams.get('owner_id') === 'eq.referrer' ? [] : [record]);
     // Existing saved jobs are compatible without any data migration or re-entry.
     if (table === 'job_compensation_terms') return Response.json([{ job_id: 'job', ...details, effective_from: start }]);
     if (table === 'v3_save_job') {
@@ -52,9 +55,9 @@ test('one job setup supplies all pay details; future jobs need no review or acti
   const overview = await request('admin/overview', 'admin');
   assert.equal(overview.statusCode, 200);
   const job = overview.data.people[0].myJobs[0];
-  assert.equal(job.status, 'pending');
+  assert.equal(job.status, 'active');
   assert.equal(job.missingPayDetails, false);
-  assert.equal(overview.data.people[0].annualGrossEstimateCents, 0);
+  assert.equal(overview.data.people[0].annualGrossEstimateCents, 2912000);
   assert.equal(payTermsText(job), '$14.00/hr · 40 h/wk');
   assert.equal(payDetailsFor(job).missingPayDetails, false);
   assert.equal(payDetailsFor(job).firstPayDate, firstPay);
@@ -82,7 +85,7 @@ test('one job setup supplies all pay details; future jobs need no review or acti
   record.planning_pay_details.first_pay_date = '2026-11-13';
   record.planning_pay_details.hourly_rate_cents = 1500;
   const projected = await loadPlanningPerson(adminClient(), owner.id, '2026-10-30');
-  assert.equal(projected.projected.annualGrossCents, 0);
+  assert.equal(projected.projected.annualGrossCents, 3120000);
   assert.equal(projected.forecast.nextDate, '2026-11-13');
   assert.equal(projected.forecast.nextGrossCents, 120000);
   assert.ok(projected.forecast.nextNetCents > 0);
@@ -90,4 +93,13 @@ test('one job setup supplies all pay details; future jobs need no review or acti
   assert.equal(started.projected.activeJobCount, 1);
   assert.equal(started.projected.projectionAvailable, true);
   assert.equal(started.projected.annualGrossCents, 3120000);
+  assert.deepEqual(projected.projected.statement, started.projected.statement);
+  assert.equal(projected.projected.activeJobCount, 1);
+  assert.equal(projected.projected.taxEstimate.totalTaxCents, started.projected.taxEstimate.totalTaxCents);
+  owner.v2_partnership = 'MIKI_REFERRAL_2_WAY';
+  referrals.push({ id: 'referral', referrer_owner_id: 'referrer', referred_owner_id: owner.id,
+    active: true, start_date: '2030-01-01', commission_basis_type: 'flat_per_active_job_month' });
+  const commissions = await loadCommissionProjections(adminClient(), '2026-10-30', 'referrer');
+  assert.equal(commissions[0].activeJobCount, 1);
+  assert.equal(commissions[0].monthlyCents, 20000);
 });

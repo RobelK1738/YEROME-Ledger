@@ -26,8 +26,8 @@ export default function AdminOverview() {
   const next = people.flatMap((p) => (p.forecast?.upcoming || []).map((row) => ({ ...row, displayName: p.displayName })))
     .sort((a, b) => a.date.localeCompare(b.date));
   const columns = [
-    { key: 'owner', header: 'Owner & income sources', mobile: 'title', render: (p) => <div className="cell-stack"><strong>{p.displayName}</strong><span className="cell-sub">{p.myJobs.filter((j) => j.status === 'active').map((j) => j.employerName).join(', ') || 'No active jobs'}</span></div> },
-    { key: 'jobs', header: 'Jobs', mobile: 'meta', render: (p) => `${p.activeJobCount} active / ${p.myJobs.length} total` },
+    { key: 'owner', header: 'Owner & income sources', mobile: 'title', render: (p) => <div className="cell-stack"><strong>{p.displayName}</strong><span className="cell-sub">{p.myJobs.filter((j) => j.status === 'active').map((j) => j.employerName).join(', ') || 'No jobs in projection'}</span></div> },
+    { key: 'jobs', header: 'Jobs', mobile: 'meta', render: (p) => `${p.activeJobCount} included / ${p.myJobs.length} total` },
     { key: 'gross', header: 'Gross / month', align: 'right', hideOnMobile: true, render: (p) => money(p.monthlyGrossEstimateCents) },
     { key: 'share', header: 'Owner share / month', align: 'right', mobile: 'amount', render: (p) => money(p.myShareMonthlyCents) },
     { key: 'commission', header: 'Commission income', align: 'right', mobile: 'meta', render: (p) => money(p.commissionIncomeMonthlyCents) },
@@ -37,7 +37,7 @@ export default function AdminOverview() {
   return <>{header}
     <StatGrid columns={4}>
       <StatCard label="Owners" value={people.length} icon="users" />
-      <StatCard label="Active jobs" value={people.reduce((n, p) => n + p.activeJobCount, 0)} icon="briefcase" />
+      <StatCard label="Jobs in projection" value={people.reduce((n, p) => n + p.activeJobCount, 0)} icon="briefcase" />
       <StatCard label="Gross income / month" value={money(people.reduce((n, p) => n + p.monthlyGrossEstimateCents, 0))} basis="estimate" />
       <StatCard label="YEROME profit / month" value={money(sum('yeromeTakeHomeMonthlyCents'))} basis="estimate" emphasis />
     </StatGrid>
@@ -55,7 +55,7 @@ export default function AdminOverview() {
           { label: 'YEROME profit', value: money(sum('yeromeTakeHomeMonthlyCents')), total: true },
         ]} />
       </Card>
-      <Card title="Next expected employer income" icon="calendar" subtitle="Automatically derived from job terms.">
+      <Card title="Next expected employer income" icon="calendar" subtitle="Based on first pay dates and pay frequency.">
         {next.length ? <DescriptionList items={next.slice(0, 6).map((row) => ({
           label: `${formatDate(row.date)} · ${row.displayName}`, hint: row.employerName, value: money(row.netCents),
         }))} /> : <p>Add job income dates to see what is expected next.</p>}

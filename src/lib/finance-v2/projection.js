@@ -10,21 +10,6 @@ function termsFor(job) {
   return job.terms || null;
 }
 
-function taxYearWagesForJob(job, taxYear) {
-  if (job.annualGrossCents == null || !['active', 'ended'].includes(job.status)) return 0;
-  if (job.status === 'ended' && !job.endDate) return 0;
-  const yearStart = `${taxYear}-01-01`;
-  const yearEnd = `${taxYear}-12-31`;
-  const start = job.startDate && job.startDate > yearStart ? job.startDate : yearStart;
-  const end = job.endDate && job.endDate < yearEnd ? job.endDate : yearEnd;
-  if (end < start) return 0;
-  const day = 86400000;
-  const included = Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / day) + 1;
-  const yearDays = Math.round((Date.parse(`${taxYear + 1}-01-01T00:00:00Z`) -
-    Date.parse(`${yearStart}T00:00:00Z`)) / day);
-  return roundRatio(job.annualGrossCents, included, yearDays);
-}
-
 export function jobProjection(job) {
   const terms = termsFor(job);
   if (!terms) return {
@@ -67,44 +52,22 @@ export function jobProjection(job) {
 export function projectPerson({ owner, jobs = [], apartment = null, paychecks = [], partnerSettlements = [], hasVerifiedReferral = false, agreementEffectiveFrom = null, taxYear = 2026, asOf = new Date().toISOString().slice(0, 10) }) {
   if (taxYear !== 2026) throw new RangeError('Tax year is not configured');
   if (jobs.some((job) => job.owner_id !== owner.id)) throw new RangeError('Cross-person job in projection');
-  const myJobs = jobs.map(jobProjection);
+  const myJobs = jobs.map((job) => jobProjection({ ...job, status: job.status === 'pending' ? 'active' : job.status }));
   const activeJobs = myJobs.filter((job) => job.status === 'active');
   const incompleteTerms = activeJobs.some((job) => job.missingPayDetails);
   const annualGrossCents = activeJobs.reduce((sum, job) => sum + (job.annualGrossCents || 0), 0);
-  // An annual estimate built from today's terms would rewrite earlier months
-  // after a raise. Until a dated wage ledger covers every interval, suppress it.
-  const annualTaxNeedsReview = jobs.some((job) => {
-    const changedTerms = (job.termsHistory || [])
-      .filter((term) => term.effective_from <= `${taxYear}-12-31` &&
-        (!term.effective_to || term.effective_to >= `${taxYear}-01-01`)).length > 1;
-    const history = job.statusHistory || [];
-    const pausedDuringYear = history.some((event) =>
-      event.status === 'paused' && event.effective_from >= `${taxYear}-01-01` &&
-      event.effective_from <= `${taxYear}-12-31`);
-    const statusAtYearStart = history.filter((event) =>
-      event.effective_from <= `${taxYear}-01-01`)
-      .sort((a, b) => a.effective_from.localeCompare(b.effective_from) ||
-        Number(a.event_order || 0) - Number(b.event_order || 0)).at(-1)?.status;
-    // A current pause may have older, unverified history; never turn received
-    // wages into a zero annual liability just because the run rate is now zero.
-    return changedTerms || pausedDuringYear || statusAtYearStart === 'paused' ||
-      job.status === 'paused';
-  });
-  const taxYearWagesCents = annualTaxNeedsReview ? null :
-    myJobs.reduce((sum, job) => sum + taxYearWagesForJob(job, taxYear), 0);
+  // These are full run-rate estimates, as if each included job has started.
+  // Start dates, pay dates and historical events never prorate or gate the story.
+  const annualTaxNeedsReview = false;
+  const taxYearWagesCents = annualGrossCents;
   const taxConfig = getTaxConfig2026(owner.filing_status);
-  const taxEstimate = taxYearWagesCents == null ? null : ownerTaxEstimate({
+  const taxEstimate = ownerTaxEstimate({
     grossWagesCents: taxYearWagesCents,
     settings: taxConfig,
     otherIncomeAdjCents: Number(owner.other_income_adjustment_cents) || 0,
     deductionAdjustmentCents: Number(owner.deduction_adjustment_cents) || 0,
   });
-  const runRateTaxEstimate = ownerTaxEstimate({
-    grossWagesCents: annualGrossCents,
-    settings: taxConfig,
-    otherIncomeAdjCents: Number(owner.other_income_adjustment_cents) || 0,
-    deductionAdjustmentCents: Number(owner.deduction_adjustment_cents) || 0,
-  });
+  const runRateTaxEstimate = taxEstimate;
   const monthlyAfterTaxCents = roundRatio(annualGrossCents - runRateTaxEstimate.totalTaxCents, 1, 12);
   const stateSupported = owner.state === 'TX';
   // Planning uses Admin-entered inputs. Verification and payment evidence belong
@@ -207,7 +170,7 @@ export function ownerStatementDto(projected) {
     requiresPayoutDecision: s?.needsPayoutPolicy ?? false,
     taxReconciliation: projected.stateSupported ? projected.reconciliation : null,
     estimateLimitations: projected.stateSupported
-      ? '2026 Texas planning estimates: monthly share uses current full-year run rate. Annual liability is unavailable after a pay-term change or job pause until dated wages are reviewed. Actual hours, withholding, credits and other income may differ.'
+      ? 'Planning estimates use the configured 2026 Texas tax model and all saved pay details as a full typical year. Dates provide job-start information and expected income timing only. Actual hours and withholding may differ.'
       : 'State tax assumptions are not configured for this US Person; no partner share is projected.',
   };
 }

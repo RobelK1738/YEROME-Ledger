@@ -12,7 +12,7 @@ import { EmptyState } from '../../components/ui/EmptyState.jsx';
 import { PageSkeleton } from '../../components/ui/Loading.jsx';
 import { ErrorState } from '../../components/ui/ErrorState.jsx';
 
-const ORDER = { active: 0, pending: 1, paused: 2, ended: 3, archived: 4 };
+const ORDER = { active: 0, paused: 2, ended: 3, archived: 4 };
 
 function JobCard({ job }) {
   return (

@@ -44,7 +44,7 @@ export default function JobsList() {
     ), renderMobile: (job) => job.employerName },
     { key: 'person', header: 'US Person', mobile: 'meta', render: (job) => <Link to={`/admin/people/${job.ownerId}`}>{job.personName}</Link>,
       renderMobile: (job) => job.personName },
-    { key: 'status', header: 'Status', mobile: 'badge', render: (job) => job.status === 'pending' ? <Badge tone="info">Starts {formatDate(job.startDate)}</Badge> : <StatusBadge status={job.status} /> },
+    { key: 'status', header: 'Status', mobile: 'badge', render: (job) => <StatusBadge status={job.status} /> },
     { key: 'pay', header: 'Pay details', mobile: 'meta', render: (job) => (payTermsText(job) ? (
       <div className="cell-stack"><span>{payTermsText(job)}</span><span className="cell-sub">{PAY_FREQUENCY_LABELS[job.payFrequency] || '—'}</span></div>
     ) : <Badge tone="warn" dot={false}>Pay details missing</Badge>),
@@ -69,7 +69,7 @@ export default function JobsList() {
         action={<ButtonLink to="/admin/jobs/new" state={{ from: '/admin/jobs' }} variant="primary" icon="plus">Add job</ButtonLink>} /></Card>
     ) : <>
       <FilterBar summary={<>
-        {plural(rows.length, 'job')} shown · {active.length} active · {money(activeGross)} combined annual gross for active jobs <BasisTag kind="estimate" />
+        {plural(rows.length, 'job')} shown · {active.length} in projection · {money(activeGross)} combined projected annual gross <BasisTag kind="estimate" />
       </>}>
         <SearchInput value={filters.query} onChange={setFilter('query')} label="Search jobs" placeholder="Employer, role or person" />
         <FilterSelect label="Status" value={filters.status} onChange={setFilter('status')}
