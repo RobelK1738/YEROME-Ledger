@@ -7,7 +7,7 @@ import { USERNAME_EXAMPLE, normalizeUsername, usernameError } from '../../../lib
 import { friendlyMessage } from '../../../components/ui/ErrorState.jsx';
 import { PageHeader } from '../../../components/ui/PageHeader.jsx';
 import { Card } from '../../../components/ui/Card.jsx';
-import { Checkbox, ChoiceGroup, Field, FormActions, FormSection, PasswordInput, Select, TextInput } from '../../../components/ui/Field.jsx';
+import { ChoiceGroup, Field, FormActions, FormSection, PasswordInput, Select, TextInput } from '../../../components/ui/Field.jsx';
 import { Button, ButtonLink } from '../../../components/ui/Button.jsx';
 import { Notice } from '../../../components/ui/Notice.jsx';
 import { DescriptionList } from '../../../components/ui/DescriptionList.jsx';
@@ -17,7 +17,6 @@ import { useToast } from '../../../components/ui/Feedback.jsx';
 const STEPS = [
   { id: 'identity', label: 'Identity & sign-in' },
   { id: 'partnership', label: 'Partnership' },
-  { id: 'agreement', label: 'Agreement' },
   { id: 'review', label: 'Review & create' },
 ];
 
@@ -28,9 +27,6 @@ function validate(step, form) {
     const username = usernameError(form.username);
     if (username) errors.username = username;
     if (!form.password) errors.password = 'Set a temporary password for their first sign-in.';
-  }
-  if (step === 2 && form.agreementVerified && !form.agreementReference.trim()) {
-    errors.agreementReference = 'Enter the agreement reference before marking it verified.';
   }
   return errors;
 }
@@ -149,7 +145,7 @@ export default function PersonCreate() {
 
   return <div className="form-page">
     <PageHeader back={{ to: '/admin/people', label: 'US Persons' }} title="Add US Person"
-      subtitle="Create a sign-in for the person and record their partnership agreement. You can add jobs right after." />
+      subtitle="Create a sign-in for the person and set their projection inputs. You can add jobs right after." />
 
     {created ? <Created owner={created.owner} username={created.username} onReset={reset} /> : <>
       <Stepper current={step} maxReached={maxReached} onSelect={goTo} />
@@ -186,11 +182,11 @@ export default function PersonCreate() {
 
           {step === 1 ? <>
             <FormSection step="3" title="Partnership model" columns={1}
-              description="Determines the agreed charges and whether a referral commission applies.">
+              description="Determines the planning charges and whether a referral commission applies.">
               <ChoiceGroup label="Partnership" layout="cards" options={PARTNERSHIP_OPTIONS} value={form.partnership}
                 onChange={(value) => set('partnership', value)} required />
               {form.partnership === 'MIKI_REFERRAL_2_WAY' ? (
-                <Notice tone="info">After creating this person, record the referral under <strong>US Persons → Referrals</strong>. The estimate stays hidden until a current referral exists.</Notice>
+                <Notice tone="info">After creating this person, record the referral under <strong>Owners → Referrals</strong>. Their projection is available immediately. The referral link identifies who earns the commission.</Notice>
               ) : null}
             </FormSection>
             <FormSection step="4" title="Tax filing status" description="Used only for the 2026 planning tax estimate.">
@@ -200,22 +196,7 @@ export default function PersonCreate() {
             </FormSection>
           </> : null}
 
-          {step === 2 ? (
-            <FormSection step="5" title="Written agreement" columns={1}
-              description="Financial estimates appear only after the signed agreement is verified. You can verify it later from the profile.">
-              <Field label="Agreement reference" id="person-agreementReference" optional={!form.agreementVerified}
-                required={form.agreementVerified} error={errors.agreementReference}
-                hint="Where the signed copy is filed, e.g. a contract ID or document name. Do not paste the document itself.">
-                <TextInput value={form.agreementReference} onChange={(e) => set('agreementReference', e.target.value)} />
-              </Field>
-              <Checkbox checked={form.agreementVerified} onChange={(e) => set('agreementVerified', e.target.checked)}
-                label="I verified the signed agreement"
-                description="Confirms the signed agreement matches the partnership model selected." />
-              <Notice tone="neutral">The apartment starts at the standard terms — $900.00 agreed charge and $650.00 actual cost per month. Adjust them from the profile if this person’s agreement differs.</Notice>
-            </FormSection>
-          ) : null}
-
-          {step === 3 ? <>
+          {step === 2 ? <>
             <FormSection title="Review" columns={1} description="Check the details before creating the account.">
               <DescriptionList items={[
                 { label: 'Display name', value: form.displayName.trim() },
@@ -223,13 +204,10 @@ export default function PersonCreate() {
                 { label: 'Temporary password', value: '•'.repeat(Math.min(form.password.length, 12)) },
                 { label: 'Partnership', value: PARTNERSHIP_LABELS[form.partnership] },
                 { label: 'Filing status', value: FILING_STATUS_OPTIONS.find((o) => o.value === form.filingStatus)?.label },
-                { label: 'Agreement reference', value: form.agreementReference.trim() || 'Not provided' },
-                { label: 'Agreement verified', value: form.agreementVerified ? 'Yes' : 'Not yet — estimate stays hidden' },
               ]} />
               <div className="btn-group">
                 <Button size="sm" variant="ghost" icon="edit" onClick={() => goTo(0)}>Edit sign-in</Button>
                 <Button size="sm" variant="ghost" icon="edit" onClick={() => goTo(1)}>Edit partnership</Button>
-                <Button size="sm" variant="ghost" icon="edit" onClick={() => goTo(2)}>Edit agreement</Button>
               </div>
             </FormSection>
             {serverError ? <Notice tone="danger" title="The US Person was not created">{serverError}</Notice> : null}

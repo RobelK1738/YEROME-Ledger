@@ -111,7 +111,7 @@ test('review reasons explain why an estimate is withheld', () => {
   const reasons = reviewReasons({ ownerId: 'x', personStatus: 'active', projectionAvailable: false,
     agreementVerifiedAt: null, partnership: 'MIKI_REFERRAL_2_WAY', apartmentQuotedMonthlyCents: 90000,
     myJobs: [{ status: 'active', needsTermsReview: true }] }, []);
-  assert.deepEqual(reasons.map((r) => r.key), ['agreement', 'referral', 'terms']);
+  assert.deepEqual(reasons.map((r) => r.key), ['terms']);
   assert.deepEqual(reviewReasons({ projectionAvailable: true }), []);
 });
 

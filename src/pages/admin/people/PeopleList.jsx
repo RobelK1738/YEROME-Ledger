@@ -42,8 +42,8 @@ export default function PeopleList() {
   if (legacyAdd === 'person') return <Navigate to="/admin/people/new" replace />;
   if (legacyAdd === 'job') return <Navigate to="/admin/jobs/new" replace />;
 
-  const header = <PageHeader title="US Persons"
-    subtitle="Each person’s jobs, agreement, estimate and account access in one place."
+  const header = <PageHeader title="Owners"
+    subtitle="Each owner’s jobs, income projection, allocation plan and account access in one place."
     actions={<ButtonLink to="/admin/people/new" variant="primary" icon="plus">Add US Person</ButtonLink>} />;
   if (loading) return <>{header}<PeopleTabs /><PageSkeleton header={false} stats={0} label="Loading US Persons…" /></>;
   if (error) return <>{header}<ErrorState error={error} onRetry={refresh} /></>;
@@ -65,14 +65,11 @@ export default function PeopleList() {
     { key: 'jobs', header: 'Jobs', mobile: 'meta', render: (person) =>
       `${person.activeJobCount} active${person.myJobs.length > person.activeJobCount ? ` of ${person.myJobs.length}` : ''}`,
     renderMobile: (person) => plural(person.activeJobCount, 'active job') },
-    { key: 'agreement', header: 'Agreement', mobile: 'meta', render: (person) => person.agreementVerifiedAt
-      ? <Badge tone="ok">Verified</Badge> : <Badge tone="warn">Not verified</Badge>,
-    renderMobile: (person) => (person.agreementVerifiedAt ? 'Agreement verified' : 'Agreement not verified') },
     { key: 'share', header: 'Partner share · est. / month', align: 'right', mobile: 'amount', render: (person) =>
       person.projectionAvailable ? <span className="num">{money(person.myShareMonthlyCents)}</span>
         : <Badge tone="warn" dot={false}>Needs review</Badge>,
     renderMobile: (person) => (person.projectionAvailable ? money(person.myShareMonthlyCents) : 'Review') },
-    { key: 'next', header: 'Next payday', hideOnMobile: true, render: (person) => formatDate(person.nextPayDate) },
+    { key: 'next', header: 'Next expected income', hideOnMobile: true, render: (person) => formatDate(person.nextPayDate) },
   ];
 
   return <>
@@ -81,7 +78,7 @@ export default function PeopleList() {
     {!people.length ? (
       <Card>
         <EmptyState icon="users" title="No US Persons yet"
-          message="Add the first US Person to create their sign-in and agreement record. Jobs and pay schedules come next."
+          message="Add the first US Person to create their sign-in and planning inputs. Add jobs to begin projecting."
           action={<ButtonLink to="/admin/people/new" variant="primary" icon="plus">Add US Person</ButtonLink>} />
       </Card>
     ) : <>

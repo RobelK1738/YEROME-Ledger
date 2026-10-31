@@ -18,6 +18,7 @@ export async function v2Request(path, method = 'GET', body = null) {
 export const getMyStatement = () => v2Request('/api/me/statement');
 export const getMyCommissions = () => v2Request('/api/me/commissions');
 export const getAdminOverview = () => v2Request('/api/admin/overview');
+export const saveProjectionPlan = (input) => v2Request('/api/admin/planning', 'PATCH', input);
 export const saveAdminJob = (input, action = 'create') =>
   v2Request('/api/admin/job', action === 'create' ? 'POST' : 'PATCH', input);
 export const saveAdminPerson = (input) => v2Request('/api/admin/person', 'PATCH', input);

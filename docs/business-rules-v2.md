@@ -1,4 +1,45 @@
-# YEROME Ledger v2 business rules
+# YEROME Ledger business rules
+
+## Projection-first update · October 30, 2026
+
+The current product is a shared estimation and projection tool. Owners see
+their jobs, gross income, estimated tax, service charges, projected profit and
+50% share; referrers also see commission sources. Admin sees the same inputs
+and shares plus actual costs, commission expense, Gang Cut and YEROME profit.
+The exact-cent monthly formula below is unchanged.
+
+Admin-entered partnership and compensation inputs are sufficient for planning.
+Agreement verification, apartment lease verification, referral verification,
+received paychecks and posted settlements do not gate the projection. Missing
+apartment amounts use the existing $900 charge/$650 cost defaults. A missing
+partnership or active-job compensation prevents a full split; unsupported state
+taxes remain unavailable. Pausing sign-in does not erase business projections.
+
+Expected employer income dates are derived from the job’s dated compensation
+terms, cadence and first expected date. Future job starts/terms affect future
+forecasts and do not inflate today’s run rate. Pauses and end dates are honored.
+Net income uses the combined annual effective tax rate for the owner, rather
+than taxing each employer separately. Forecasts stop at the end of configured
+2026 assumptions. Next-inflow allocations scale the monthly formula, so they
+are equivalent planning amounts rather than a calendar-month settlement.
+
+Commission projections use $200 per active referred job and the recorded
+referral relationship; they do not require posted accruals or payment evidence.
+An unlinked referral-partnership job still includes commission expense in the
+Admin projection; the recipient is attributed when Admin records the link.
+Referral names retain the existing disclosure setting.
+
+Admin can save a planned fund date and plain-text allocation instructions.
+These are shared with that owner; they do not record a payment or change the
+calculated split. Cost/partnership overrides update current planning only and
+use the existing audit log. No approval workflow or manual allocation builder
+is included. Historical finance data and restrictive mutation APIs are retained,
+but payment-tracking screens are removed from the product navigation.
+
+The remainder of this document describes the retained calculation foundation
+and historical v2 settlement machinery; its verification/payment gates apply
+to that historical machinery, not to current projections.
+
 
 Status: implemented planning rules, 2026-10-18. The founder's v2 prompt and
 `YEROME_V2_IMPLEMENTATION_PLAN.md` govern business intent. The workbook link was

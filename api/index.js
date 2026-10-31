@@ -5,6 +5,7 @@ import adminJob from '../server/admin/job.js';
 import adminOverview from '../server/admin/overview.js';
 import adminPaycheck from '../server/admin/paycheck.js';
 import adminPerson from '../server/admin/person.js';
+import adminPlanning from '../server/admin/planning.js';
 import adminReferral from '../server/admin/referral.js';
 import adminSettlements from '../server/admin/settlements.js';
 import meCommissions from '../server/me/commissions.js';
@@ -23,6 +24,7 @@ const routes = Object.freeze({
   'admin/overview': adminOverview,
   'admin/paycheck': adminPaycheck,
   'admin/person': adminPerson,
+  'admin/planning': adminPlanning,
   'admin/referral': adminReferral,
   'admin/settlements': adminSettlements,
   'me/commissions': meCommissions,

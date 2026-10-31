@@ -134,7 +134,7 @@ export default function JobForm() {
           {preview ? (
             <div className="estimate-preview field--full" aria-live="polite">
               <div><span className="estimate-preview__label">Annual gross</span><span className="estimate-preview__value">{money(preview.annual)}</span></div>
-              <div><span className="estimate-preview__label">Typical employer paycheck</span><span className="estimate-preview__value">{money(preview.perPaycheck)}</span></div>
+              <div><span className="estimate-preview__label">Expected gross per income date</span><span className="estimate-preview__value">{money(preview.perPaycheck)}</span></div>
               <BasisTag kind="estimate" />
             </div>
           ) : null}

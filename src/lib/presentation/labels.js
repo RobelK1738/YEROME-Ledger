@@ -8,9 +8,9 @@ export const PARTNERSHIP_LABELS = Object.freeze({
 
 export const PARTNERSHIP_OPTIONS = Object.freeze([
   { value: 'DIRECT_2_WAY', label: 'Direct · 50/50',
-    description: 'Contractual share is 50% of quoted net after agreed charges.' },
+    description: 'Owner share is 50% of after-tax income less apartment and service charges.' },
   { value: 'MIKI_REFERRAL_2_WAY', label: 'Referred · 50/50 + separate commission',
-    description: 'Same 50/50 share. The referrer earns a separate $200 per eligible active job each full month.' },
+    description: 'Same 50/50 share. The referrer earns a separate $200 per eligible active job per month.' },
 ]);
 
 export const FILING_STATUS_OPTIONS = Object.freeze([

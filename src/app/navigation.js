@@ -3,9 +3,9 @@
 
 export const ADMIN_NAV = Object.freeze([
   { to: '/admin', label: 'Overview', icon: 'overview', end: true, primary: true, group: 'Operations' },
-  { to: '/admin/people', label: 'US Persons', shortLabel: 'People', icon: 'users', primary: true, group: 'Operations' },
+  { to: '/admin/people', label: 'Owners', shortLabel: 'Owners', icon: 'users', primary: true, group: 'Operations' },
   { to: '/admin/jobs', label: 'Jobs', icon: 'briefcase', primary: true, group: 'Operations' },
-  { to: '/admin/pay-runs', label: 'Pay Runs', shortLabel: 'Pay', icon: 'banknote', primary: true, group: 'Operations' },
+  { to: '/admin/projections', label: 'Projections & allocation', shortLabel: 'Plan', icon: 'banknote', primary: true, group: 'Operations' },
   { to: '/admin/config', label: 'Configuration', shortLabel: 'Config', icon: 'settings', group: 'Administration' },
   { to: '/admin/audit', label: 'Audit', icon: 'history', group: 'Administration' },
 ]);
@@ -13,7 +13,7 @@ export const ADMIN_NAV = Object.freeze([
 export const OWNER_NAV = Object.freeze([
   { to: '/owner', label: 'Home', icon: 'home', end: true, primary: true },
   { to: '/owner/jobs', label: 'My Jobs', shortLabel: 'Jobs', icon: 'briefcase', primary: true },
-  { to: '/owner/payments', label: 'Payments', icon: 'receipt', primary: true },
+  { to: '/owner/plan', label: 'What’s next', shortLabel: 'Next', icon: 'calendar', primary: true },
 ]);
 
 export const OWNER_COMMISSIONS_NAV = Object.freeze(

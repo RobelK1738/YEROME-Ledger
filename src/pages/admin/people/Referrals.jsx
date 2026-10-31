@@ -35,14 +35,14 @@ function ReferralDrawer({ open, onClose, people, referrals, initial, onSaved }) 
     if (!form.referrerOwnerId || !form.referredOwnerId) { setLocalError('Choose both the referrer and the referred US Person.'); return; }
     if (form.referrerOwnerId === form.referredOwnerId) { setLocalError('The referrer and the referred US Person must be different people.'); return; }
     run(() => saveAdminReferral(form), {
-      success: 'Referral agreement saved.',
+      success: 'Referral saved.',
       onSuccess: async () => { await onSaved(); onClose(); },
     });
   }
 
   return (
     <Drawer open={open} onClose={onClose} title={form.replaceReferralId ? 'Replace referral' : 'Record referral'}
-      description="$200 per eligible active referred job for each full calendar month. No percentage split."
+      description="$200 per eligible active referred job for each full calendar month. Used for the monthly commission projection."
       footer={<>
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
         <Button type="submit" form={FORM_ID} variant="primary" loading={busy}>Save referral</Button>
@@ -73,7 +73,7 @@ function ReferralDrawer({ open, onClose, people, referrals, initial, onSaved }) 
           </Field>
           <Switch checked={form.nameVisibleToReferrer} onChange={(e) => set('nameVisibleToReferrer', e.target.checked)}
             label="Show the referred person’s name to the referrer"
-            description="Turn on only if the agreement permits it. Otherwise the referrer sees “Referred US Person”." />
+            description="Otherwise the referrer sees “Referred US Person”." />
         </FormSection>
       </form>
     </Drawer>
@@ -96,7 +96,7 @@ export default function Referrals() {
   }, [searchParams, setSearchParams]);
 
   const header = <PageHeader title="Referrals"
-    subtitle="Who referred whom. Commission accruals and payments are recorded in Pay Runs → Commissions."
+    subtitle="Who referred whom. See projected commission sources and amounts in the financial overview."
     actions={<Button variant="primary" icon="plus" onClick={() => setDrawer({})}>Record referral</Button>} />;
   if (loading || loadingReferrals) return <>{header}<PeopleTabs /><PageSkeleton header={false} stats={0} /></>;
   if (error || referralError) return <>{header}<PeopleTabs /><ErrorState error={error || referralError} onRetry={() => { refresh(); refreshReferrals(); }} /></>;
@@ -117,7 +117,7 @@ export default function Referrals() {
         <span className="cell-sub">Referrer → referred US Person</span></div>
     ), renderMobile: (row) => `${row.referrerName} → ${row.referredName}` },
     { key: 'status', header: 'Status', mobile: 'badge', render: (row) => row.needsContractReview
-      ? <Badge tone="danger">Contract review</Badge>
+      ? <Badge tone="danger">Legacy commission basis</Badge>
       : row.relationshipCurrent ? <Badge tone="ok">Current</Badge>
         : row.startDate > today ? <Badge tone="info">Scheduled</Badge> : <Badge tone="muted">Ended</Badge> },
     { key: 'start', header: 'Starts', mobile: 'meta', render: (row) => formatDate(row.startDate) },
