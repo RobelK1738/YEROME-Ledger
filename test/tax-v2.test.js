@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { getTaxConfig2026 } from '../src/lib/calculations/taxConfig2026.js';
-import { taxableIncome, ownerTaxEstimate, projectedOwnerWages } from '../src/lib/calculations/tax.js';
+import { taxableIncome, federalIncomeTax, ownerTaxEstimate, projectedOwnerWages } from '../src/lib/calculations/tax.js';
 import { taxReconciliation } from '../src/lib/finance-v2/tax-reconciliation.js';
 
 test('2026 single $50k wages uses the official $16,100 standard deduction', () => {
@@ -87,4 +87,10 @@ test('a missing paystub withholding field is unknown, not zero', () => {
   assert.equal(result.actualWithholdingCents, null);
   assert.equal(result.projectedGapCents, null);
   assert.equal(result.missingWithholdingCount, 1);
+});
+
+// IRS Publication 505 (2026), Schedule Z: $39,207 + 32% above $201,750.
+test('Head of Household enters the 32 percent bracket at $201,750 taxable income', () => {
+  assert.equal(federalIncomeTax(25_000_000, getTaxConfig2026('hoh')), 5_464_700);
+  assert.equal(federalIncomeTax(20_175_000, getTaxConfig2026('hoh')), 3_920_700);
 });

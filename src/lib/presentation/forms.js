@@ -66,8 +66,8 @@ export function agreementFormFor(person, today) {
     partnership: person?.partnership || 'DIRECT_2_WAY',
     agreementReference: '',
     agreementVerified: Boolean(person?.agreementVerifiedAt),
-    actualMonthly: dollarsInput(person?.apartmentActualMonthlyCents || 65000),
-    quotedMonthly: dollarsInput(person?.apartmentQuotedMonthlyCents || 90000),
+    actualMonthly: optionalDollars(person?.apartmentActualMonthlyCents),
+    quotedMonthly: dollarsInput(person?.apartmentQuotedMonthlyCents ?? 90000),
     effectiveFrom: addDaysISO(laterOf(person?.currentAgreementEffectiveFrom, today), 1),
   };
 }

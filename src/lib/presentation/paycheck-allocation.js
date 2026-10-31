@@ -12,9 +12,9 @@ export function nextJobPaychecks(person) {
 export function paycheckAllocation(person, paycheck) {
   const monthlyNet = person.monthlyAfterTaxEquivalentCents;
   if (!person.projectionAvailable || paycheck.taxCents == null || paycheck.netCents == null || paycheck.netCents < 0 ||
-      !Number.isSafeInteger(monthlyNet) || monthlyNet <= 0 || person.myShareMonthlyCents == null || person.agreedChargesMonthlyCents == null) return null;
-  const ownerCents = roundRatio(person.myShareMonthlyCents, paycheck.netCents, monthlyNet);
+      !Number.isSafeInteger(monthlyNet) || monthlyNet <= 0 || person.myShareMonthlyCents == null || person.myShareMonthlyCents < 0 || person.agreedChargesMonthlyCents == null) return null;
   const chargesCents = roundRatio(person.agreedChargesMonthlyCents, paycheck.netCents, monthlyNet);
+  const ownerCents = roundRatio(paycheck.netCents - chargesCents, 1, 2);
   const yeromeCents = paycheck.netCents - ownerCents;
   if (ownerCents < 0 || yeromeCents < 0) return null;
   const taxParts = (person.taxBreakdownAnnual || []).map((line) => ({ key: line.key, label: line.label,

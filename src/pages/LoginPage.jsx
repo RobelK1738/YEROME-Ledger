@@ -58,27 +58,27 @@ export default function LoginPage() {
       ) : null}
 
       <ChoiceGroup label="I am signing in as" name="login-mode" options={MODES} value={mode}
-        onChange={(next) => { setMode(next); setError(''); }} />
+        onChange={(next) => { if (next !== mode) { setMode(next); setPassword(''); setError(''); } }} />
 
       {error ? <Notice tone="danger" role="alert">{error}</Notice> : null}
 
-      <form className="auth-form" onSubmit={submit}>
+      <form key={mode} className="auth-form" onSubmit={submit}>
         {mode === 'admin' ? (
           <Field label="Email" id="admin-email" required>
-            <TextInput type="email" autoComplete="username" value={email}
+            <TextInput name="email" type="email" autoComplete="section-admin username" autoCapitalize="none" spellCheck={false} value={email}
               onChange={(e) => setEmail(e.target.value)} placeholder="admin@example.com" required />
           </Field>
         ) : (
           <Field label="Username" id="owner-username" required
             hint={`The username YEROME gave you — not an email address. For example, ${USERNAME_EXAMPLE}.`}
             error={looksLikeEmail ? 'US Person usernames are not email addresses. Use the username YEROME gave you.' : undefined}>
-            <TextInput type="text" autoComplete="username" autoCapitalize="none" spellCheck={false}
+            <TextInput name="username" type="text" autoComplete="section-owner username" autoCapitalize="none" spellCheck={false}
               value={username} onChange={(e) => setUsername(e.target.value)} placeholder={USERNAME_EXAMPLE} required />
           </Field>
         )}
 
         <Field label="Password" id="password" required>
-          <PasswordInput autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <PasswordInput name={`${mode}-password`} autoComplete={`section-${mode} current-password`} value={password} onChange={(e) => setPassword(e.target.value)} required />
         </Field>
 
         <Button type="submit" variant="primary" block loading={busy}>{busy ? 'Signing in…' : 'Sign in'}</Button>

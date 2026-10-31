@@ -27,6 +27,7 @@ export function statementAmounts(person) {
     ? subtract(biweekly.gross, biweekly.net) : roundRatio(person.runRateAnnualTaxEstimateCents, 1, 26);
   biweekly.net = subtract(biweekly.gross, biweekly.tax);
   biweekly.profit = subtract(biweekly.net, biweekly.fees);
+  biweekly.owner = biweekly.profit == null ? null : roundRatio(biweekly.profit, 1, 2);
   biweekly.service = subtract(biweekly.profit, biweekly.owner);
   biweekly.yerome = subtract(biweekly.net, biweekly.costs, biweekly.owner, biweekly.commissions, biweekly.gang);
   biweekly.personalTotal = add(biweekly.owner, biweekly.commissionIncome);

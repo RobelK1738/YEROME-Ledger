@@ -1,15 +1,19 @@
 -- Run only against a disposable cluster after all migrations.
-insert into auth.users (id) values
- ('10000000-0000-0000-0000-000000000001'),
- ('20000000-0000-0000-0000-000000000002'),
- ('30000000-0000-0000-0000-000000000003'),
- ('40000000-0000-0000-0000-000000000004');
-update auth.users set email = case id
+-- Provision the initial identity in one insert. Updating it immediately before
+-- creating sessions can put both timestamps on the same clock tick, correctly
+-- revoking those synthetic sessions and making role assertions intermittent.
+insert into auth.users (id,email,raw_app_meta_data,email_confirmed_at)
+select id, case id
   when '40000000-0000-0000-0000-000000000004' then 'robiemelaku@gmail.com'
   else id::text || '@owners.local' end,
-  raw_app_meta_data = jsonb_build_object('role',case when id =
+  jsonb_build_object('role',case when id =
     '40000000-0000-0000-0000-000000000004' then 'admin' else 'owner' end),
-  email_confirmed_at = now();
+  now()
+from (values
+ ('10000000-0000-0000-0000-000000000001'::uuid),
+ ('20000000-0000-0000-0000-000000000002'::uuid),
+ ('30000000-0000-0000-0000-000000000003'::uuid),
+ ('40000000-0000-0000-0000-000000000004'::uuid)) identities(id);
 insert into auth.sessions(id,user_id) values
  ('11111111-1111-1111-1111-111111111111','10000000-0000-0000-0000-000000000001'),
  ('22222222-2222-2222-2222-222222222222','20000000-0000-0000-0000-000000000002'),

@@ -3,20 +3,9 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase/client.js';
 import { ownerLogin as ownerLoginApi } from '../lib/data/adminApi.js';
+import { sessionAuthorization, adminPasswordLogin } from '../lib/auth/signIn.js';
 
 const AuthContext = createContext(null);
-
-async function sessionAuthorization(session) {
-  if (!session?.access_token) return { role: null };
-  try {
-    const response = await fetch('/api/auth/session', {
-      headers: { Authorization: `Bearer ${session.access_token}` }, cache: 'no-store',
-    });
-    if (!response.ok) return { role: null };
-    const result = await response.json();
-    return { role: ['admin', 'owner'].includes(result.role) ? result.role : null };
-  } catch { return { role: null }; }
-}
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
@@ -44,15 +33,7 @@ export function AuthProvider({ children }) {
   }, [refreshAuthorization]);
 
   const adminLogin = useCallback(async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data.session) throw new Error('Invalid sign-in details.');
-    const result = await refreshAuthorization(data.session);
-    if (result.role !== 'admin') {
-      await supabase.auth.signOut({ scope: 'local' });
-      await refreshAuthorization(null);
-      throw new Error('Invalid sign-in details.');
-    }
-    return result;
+    return adminPasswordLogin(supabase.auth, email, password, refreshAuthorization);
   }, [refreshAuthorization]);
 
   const ownerLogin = useCallback(async (username, password) => {

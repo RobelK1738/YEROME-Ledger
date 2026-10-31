@@ -27,6 +27,7 @@ test('each job’s gross is fully allocated and YEROME includes charges plus its
     const value = paycheckAllocation(person, row);
     assert.equal(value.grossCents, value.taxCents + value.yeromeCents + value.ownerCents);
     assert.equal(value.yeromeCents, value.chargesCents + value.serviceShareCents);
+    assert.ok(Math.abs(value.ownerCents - value.serviceShareCents) <= 1);
     assert.equal(value.taxParts.reduce((sum, line) => sum + line.cents, 0), value.taxCents);
     assert.equal(value.taxParts.find((line) => line.key === 'state').cents, 0);
     assert.equal('actualCostCents' in value, false);

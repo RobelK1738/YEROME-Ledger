@@ -29,6 +29,12 @@ management stay in a secondary menu. Supabase Auth supplies identity. Vercel `/a
 revalidate it and return explicit role-specific DTOs. Owners cannot read other
 owners or Admin’s actual spending and internal margins.
 
+Admin sign-in uses the existing Supabase Auth account password. A legacy
+`ADMIN_PASSWORD` deployment variable has no effect on sign-in. Use the login
+page’s Admin password-recovery link to change that password. Password rejection,
+service failures and a server access denial have separate messages; switching
+between Owner and Admin clears the password and uses separate autofill sections.
+
 The existing exact-cent monthly engine and 2026 Texas tax model remain in
 `src/lib/finance-v2/` and `src/lib/calculations/`. `forecast.js` derives expected
 income dates from saved job pay details, start date and job status; it writes no

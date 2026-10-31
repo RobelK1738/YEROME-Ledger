@@ -109,3 +109,11 @@ test('referral source amounts sum to the displayed two-week income without a rou
   assert.equal(values.biweekly.commissionIncome, 3 * 9231);
   assert.equal(values.biweekly.personalTotal, values.biweekly.owner + 3 * 9231);
 });
+
+test('each period divides its own rounded profit equally within one cent', () => {
+  const s = statementAmounts({ ...person, annualGrossEstimateCents: 30000000,
+    runRateAnnualTaxEstimateCents: 8487325, monthlyGrossEstimateCents: 2500000,
+    monthlyTaxEstimateCents: 707277, monthlyAfterTaxEquivalentCents: 1792723,
+    agreedChargesMonthlyCents: 755000, quotedNetMonthlyCents: 1037723, myShareMonthlyCents: 518862 });
+  assert.deepEqual([s.biweekly.profit, s.biweekly.owner, s.biweekly.service], [478948, 239474, 239474]);
+});

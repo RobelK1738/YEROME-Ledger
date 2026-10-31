@@ -42,8 +42,8 @@ const HOH_BRACKETS = [
   { rate: 0.1, min: 0, max: 1_770_000 },
   { rate: 0.12, min: 1_770_000, max: 6_745_000 },
   { rate: 0.22, min: 6_745_000, max: 10_570_000 },
-  { rate: 0.24, min: 10_570_000, max: 20_177_500 },
-  { rate: 0.32, min: 20_177_500, max: 25_620_000 },
+  { rate: 0.24, min: 10_570_000, max: 20_175_000 },
+  { rate: 0.32, min: 20_175_000, max: 25_620_000 },
   { rate: 0.35, min: 25_620_000, max: 64_060_000 },
   { rate: 0.37, min: 64_060_000, max: null },
 ];
@@ -58,7 +58,7 @@ const TEXAS_STATE_RATE = 0; // Texas has no personal income tax.
 function base(filingStatus, standardDeductionCents, brackets, addlMedicareThresholdCents) {
   return {
     year: 2026,
-    version: 'irs-2026-revproc-2025-32-v1',
+    version: 'irs-2026-revproc-2025-32-v2',
     filing_status: filingStatus,
     standard_deduction_cents: standardDeductionCents,
     federal_brackets: brackets,
