@@ -28,7 +28,7 @@ owners or Admin’s actual spending and internal margins.
 
 The existing exact-cent monthly engine and 2026 Texas tax model remain in
 `src/lib/finance-v2/` and `src/lib/calculations/`. `forecast.js` derives expected
-income dates from dated compensation terms and job status; it writes no
+income dates from saved job pay details, start date and job status; it writes no
 paycheck records. Net forecasts allocate each owner’s combined annual tax rate
 to expected gross income. Suggested fund allocations scale monthly assumptions
 to the next inflow and preserve cents. They are projections, not payroll facts.
@@ -57,3 +57,12 @@ service-role key out of client variables. See the runbook for a safe preview.
 Legacy SQLite demo scripts and the old percentage/reserve UI were retired.
 `supabase/seed.sql` now contains only unverified, loginless synthetic data for
 a newly migrated disposable database.
+
+Job setup is one form. Pay details and the first pay date are stored once on
+the job and can be edited normally, including on the same day. There is no
+terms review, separate effective date or future-job activation step. Existing
+saved compensation is read automatically; historical version rows stay intact.
+
+Apply the additive `simple_job_pay_details` migration before deploying the
+simplified job form. It adds current planning inputs to jobs and a service-only
+save routine; historical compensation records are unchanged.

@@ -10,7 +10,7 @@ import { payTermsText } from '../../lib/presentation/people.js';
 export function IncomeSources({ person }) {
   const jobs = person.myJobs || [];
   const columns = [
-    { key: 'job', header: 'Income source', mobile: 'title', render: (row) => <div className="cell-stack"><strong>{row.employerName}</strong><span className="cell-sub">{row.roleTitle || 'Job'} · {payTermsText(row) || (row.plannedTerms ? `From ${formatDate(row.plannedTerms.currentTermsEffectiveFrom)}: ${payTermsText(row.plannedTerms)}` : 'Add compensation terms')}</span></div> },
+    { key: 'job', header: 'Income source', mobile: 'title', render: (row) => <div className="cell-stack"><strong>{row.employerName}</strong><span className="cell-sub">{row.roleTitle || 'Job'} · {payTermsText(row) || 'Pay details not entered'}</span></div> },
     { key: 'status', header: 'Status', mobile: 'badge', render: (row) => <Badge tone={row.status === 'active' ? 'ok' : 'muted'}>{row.status === 'pending' ? 'Planned' : row.status}</Badge> },
     { key: 'gross', header: 'Gross / month', align: 'right', mobile: 'amount', render: (row) => money(row.status === 'active' && row.annualGrossCents != null ? Math.round(row.annualGrossCents / 12) : null) },
   ];

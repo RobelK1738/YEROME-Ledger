@@ -15,9 +15,11 @@ apartment amounts use the existing $900 charge/$650 cost defaults. A missing
 partnership or active-job compensation prevents a full split; unsupported state
 taxes remain unavailable. Pausing sign-in does not erase business projections.
 
-Expected employer income dates are derived from the job’s dated compensation
-terms, cadence and first expected date. Future job starts/terms affect future
-forecasts and do not inflate today’s run rate. Pauses and end dates are honored.
+Expected employer income dates are derived from the job’s saved pay details,
+cadence and first expected date. Future job starts affect future forecasts and
+do not inflate today’s run rate. Job setup and editing have no separate terms
+review, effective date or activation step. Existing saved compensation inputs
+are read automatically; normal edits update current planning immediately. Pauses and end dates are honored.
 Net income uses the combined annual effective tax rate for the owner, rather
 than taxing each employer separately. Forecasts stop at the end of configured
 2026 assumptions. Next-inflow allocations scale the monthly formula, so they

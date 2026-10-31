@@ -38,7 +38,7 @@ export const PERSON_STATUS = Object.freeze({
 });
 
 export const JOB_STATUS = Object.freeze({
-  pending: { label: 'Pending', tone: 'info' },
+  pending: { label: 'Planned', tone: 'info' },
   active: { label: 'Active', tone: 'ok' },
   paused: { label: 'Paused', tone: 'warn' },
   ended: { label: 'Ended', tone: 'muted' },

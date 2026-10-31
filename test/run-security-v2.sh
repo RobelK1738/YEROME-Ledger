@@ -41,6 +41,8 @@ psql -h "$test_tmp" -p "$test_port" -d postgres -v ON_ERROR_STOP=1 \
 psql -h "$test_tmp" -p "$test_port" -d postgres -v ON_ERROR_STOP=1 \
   -f "$test_root/test/fixtures/planning.sql" >/dev/null
 psql -h "$test_tmp" -p "$test_port" -d postgres -v ON_ERROR_STOP=1 \
+  -f "$test_root/test/fixtures/job-pay-details.sql" >/dev/null
+psql -h "$test_tmp" -p "$test_port" -d postgres -v ON_ERROR_STOP=1 \
   -f "$test_root/supabase/seed.sql" >/dev/null
 seed_rows="$(psql -h "$test_tmp" -p "$test_port" -d postgres -At -v ON_ERROR_STOP=1 \
   -c "select count(*) from public.job_compensation_terms where job_id in

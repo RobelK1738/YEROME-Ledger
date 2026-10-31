@@ -51,6 +51,7 @@ export default function App({ recoveryCallback }) {
         <Route path="/admin/people/:ownerId" element={<PersonDetail />} />
         <Route path="/admin/jobs" element={<JobsList />} />
         <Route path="/admin/jobs/new" element={<JobForm />} />
+        <Route path="/admin/jobs/:jobId/edit" element={<JobForm />} />
         <Route path="/admin/jobs/:jobId/terms" element={<JobForm />} />
         <Route path="/admin/jobs/*" element={<Navigate to="/admin/jobs" replace />} />
         <Route path="/admin/projections" element={<AdminProjections />} />

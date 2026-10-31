@@ -13,7 +13,7 @@ export async function loadPlanningPerson(db, ownerId, asOf) {
   if (result.error) throw result.error;
   if (!result.data) return null;
   const [jobs, agreements, apartments, planRows] = await Promise.all([
-    allPages(() => db.from('jobs').select('id,owner_id,employer_name,role_title,status,start_date,end_date')
+    allPages(() => db.from('jobs').select('id,owner_id,employer_name,role_title,status,start_date,end_date,planning_pay_details')
       .eq('owner_id', ownerId).order('id')),
     db.from('v2_agreement_versions').select('partnership,effective_from,effective_to')
       .eq('owner_id', ownerId).lte('effective_from', asOf)
@@ -38,16 +38,20 @@ export async function loadPlanningPerson(db, ownerId, asOf) {
     actual_monthly_cents: plan?.apartment_actual_cents ?? apartments[0]?.actual_monthly_cents ?? PACKAGE_V1.fixedActualCents,
     quoted_monthly_cents: plan?.apartment_charge_cents ?? apartments[0]?.quoted_monthly_cents ?? PACKAGE_V1.fixedQuotedCents,
   };
-  const rawJobs = jobs.map((job) => ({ ...job,
-    termsHistory: terms.filter((row) => row.job_id === job.id),
-    statusHistory: events.filter((row) => row.job_id === job.id) }));
+  const rawJobs = jobs.map((job) => {
+    const legacy = terms.filter((row) => row.job_id === job.id);
+    const saved = job.planning_pay_details || legacy.find((row) => !row.effective_to) || legacy[0];
+    return { ...job,
+      termsHistory: saved ? [{ ...saved, effective_from: job.start_date || '2026-01-01', effective_to: null }] : [],
+      statusHistory: events.filter((row) => row.job_id === job.id) };
+  });
   const projected = projectPerson({ owner, jobs: rawJobs.map((job) => jobOn(job, asOf)), apartment, asOf, taxYear: 2026 });
-  // A planned job shows its submitted future terms without contributing to today's income.
+  // Submitted details remain visible before a future job starts. Only dated,
+  // active jobs contribute to today's income totals.
   projected.myJobs = projected.myJobs.map((job) => {
     const raw = rawJobs.find((row) => row.id === job.id);
-    const next = raw.termsHistory.filter((row) => row.effective_from > asOf)
-      .sort((a, b) => a.effective_from.localeCompare(b.effective_from))[0];
-    return { ...job, plannedTerms: next ? jobProjection({ ...raw, terms: next }) : null };
+    const saved = raw.termsHistory.find((row) => !row.effective_to) || raw.termsHistory[0];
+    return { ...job, missingPayDetails: !saved, savedPayDetails: saved ? jobProjection({ ...raw, terms: saved }) : null };
   });
   return { projected, forecast: incomeForecast({ owner, jobs: rawJobs, apartment, asOf }),
     allocationPlan: allocationPlanDto(plan), rawJobs };

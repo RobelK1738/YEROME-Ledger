@@ -31,7 +31,7 @@ export function jobProjection(job) {
     id: job.id, employerName: job.employer_name, status: job.status,
     startDate: job.start_date || null, endDate: job.end_date || null,
     compensationMode: null, annualGrossCents: null, typicalBiweeklyGrossCents: null,
-    needsTermsReview: true,
+    missingPayDetails: true,
   };
   const annualGrossCents = terms.mode === 'hourly'
     ? hourlyAnnualGrossCents(Number(terms.hourly_rate_cents), Number(terms.expected_weekly_hours))
@@ -59,7 +59,7 @@ export function jobProjection(job) {
     periodsPerYear,
     firstPayDate: terms.first_pay_date || null,
     currentTermsEffectiveFrom: terms.effective_from || null,
-    needsTermsReview: false,
+    missingPayDetails: false,
   };
 }
 
@@ -69,7 +69,7 @@ export function projectPerson({ owner, jobs = [], apartment = null, paychecks = 
   if (jobs.some((job) => job.owner_id !== owner.id)) throw new RangeError('Cross-person job in projection');
   const myJobs = jobs.map(jobProjection);
   const activeJobs = myJobs.filter((job) => job.status === 'active');
-  const incompleteTerms = activeJobs.some((job) => job.needsTermsReview);
+  const incompleteTerms = activeJobs.some((job) => job.missingPayDetails);
   const annualGrossCents = activeJobs.reduce((sum, job) => sum + (job.annualGrossCents || 0), 0);
   // An annual estimate built from today's terms would rewrite earlier months
   // after a raise. Until a dated wage ledger covers every interval, suppress it.
