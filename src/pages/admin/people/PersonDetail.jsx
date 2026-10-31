@@ -17,7 +17,6 @@ import { Button, ButtonLink } from '../../../components/ui/Button.jsx';
 import { useConfirm } from '../../../components/ui/Feedback.jsx';
 import { JobActions } from '../jobs/JobActions.jsx';
 import { AssumptionsDrawer } from './AssumptionsDrawer.jsx';
-import { AllocationEditor } from '../../../components/planning/AllocationEditor.jsx';
 import { Breakdown, NextFund, CommissionDetails } from '../../../components/planning/Statement.jsx';
 
 function Jobs({ person, refresh }) {
@@ -74,7 +73,6 @@ export default function PersonDetail() {
   const [searchParams] = useSearchParams();
   const { data, loading, error, refresh } = useAsync(getAdminOverview, []);
   const [assumptionsOpen, setAssumptionsOpen] = useState(false);
-  const [allocationOpen, setAllocationOpen] = useState(false);
   const confirm = useConfirm();
   const { run, busy } = useMutation();
 
@@ -95,7 +93,7 @@ export default function PersonDetail() {
     <PageHeader back={back} title={person.displayName} subtitle={`${person.activeJobCount} jobs · ${PARTNERSHIP_LABELS[person.partnership] || 'Choose a partnership'}`}
       actions={<><Button variant="secondary" onClick={() => setAssumptionsOpen(true)}>Costs & split</Button><ButtonLink to={`/admin/jobs/new?owner=${ownerId}`} variant="primary" icon="plus">Add job</ButtonLink></>} />
     <Breakdown person={person} admin commissions={data.commissions.filter((row) => row.referredOwnerId === ownerId)} />
-    <NextFund person={person} admin onEdit={() => setAllocationOpen(true)} />
+    <NextFund person={person} admin />
     <CommissionDetails sources={sources} />
     <details className="statement-disclosure" open={searchParams.get('tab') === 'jobs'}><summary>Manage jobs ({person.myJobs.length})</summary><Jobs person={person} refresh={refresh} /></details>
     <details className="statement-disclosure"><summary>Referral links</summary><Referrals person={person} referrals={referrals} /></details>
@@ -104,6 +102,5 @@ export default function PersonDetail() {
       {person.personStatus !== 'archived' ? <Button variant="ghost-danger" disabled={busy} onClick={() => changeStatus('archived')}>Archive owner</Button> : null}
     </div></details>
     <AssumptionsDrawer open={assumptionsOpen} person={person} onClose={() => setAssumptionsOpen(false)} onSaved={refresh} />
-    <AllocationEditor open={allocationOpen} person={person} onClose={() => setAllocationOpen(false)} onSaved={refresh} />
   </>;
 }

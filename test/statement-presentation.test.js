@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { statementAmounts, companyAmounts, nextFunds, costDetails, taxDetails, fundMatchesBiweekly } from '../src/lib/presentation/statement.js';
+import { statementAmounts, companyAmounts, nextFunds, costDetails, taxDetails } from '../src/lib/presentation/statement.js';
 import { projectPerson, ownerStatementDto, adminStatementDto } from '../src/lib/finance-v2/projection.js';
-import { incomeForecast, ownerForecastDto } from '../src/lib/finance-v2/forecast.js';
 import { ADMIN_NAV, OWNER_NAV } from '../src/app/navigation.js';
 
 const person = { ownerId: 'one', displayName: 'Owner', projectionAvailable: true,
@@ -66,9 +65,10 @@ test('next funds group the same date without combining different paydays or unkn
   assert.equal(nextFunds([{ ...person, forecast: forecast('2026-11-13', 'a', null) }]).net, null);
 });
 
-test('primary navigation is two Admin destinations and one Owner statement', () => {
-  assert.deepEqual(ADMIN_NAV.filter((item) => item.primary).map((item) => item.label), ['Statement', 'Owners']);
-  assert.equal(OWNER_NAV.length, 1);
+test('allocation tabs are available to both roles beside their statements', () => {
+  assert.deepEqual(ADMIN_NAV.filter((item) => item.primary).map((item) => item.label), ['Statement', 'Owners', 'Allocations']);
+  assert.deepEqual(OWNER_NAV.map((item) => item.label), ['Statement', 'Allocations']);
+  assert.equal(OWNER_NAV[1].to, '/owner/allocations');
   assert.equal(OWNER_NAV[0].to, '/owner');
 });
 
@@ -100,10 +100,7 @@ test('seven-job workbook example has itemized charges and separate private opera
     assert.equal(lines.reduce((sum, line) => sum + line.monthlyCents, 0), amounts.monthly[key]);
     assert.equal(lines.reduce((sum, line) => sum + line.biweeklyCents, 0), amounts.biweekly[key]);
   }
-  const forecast = incomeForecast({ owner, jobs: [jobs[0]], asOf: '2026-10-31' });
-  const one = ownerStatementDto(projectPerson({ owner, jobs: [jobs[0]], asOf: '2026-10-31' }));
-  assert.equal(fundMatchesBiweekly([{ ...one, forecast: ownerForecastDto(forecast) }]), true);
-  assert.equal(fundMatchesBiweekly([{ ...publicDto, forecast: ownerForecastDto(forecast) }]), false);
+
 });
 
 test('referral source amounts sum to the displayed two-week income without a rounding gap', () => {

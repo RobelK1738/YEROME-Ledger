@@ -104,15 +104,3 @@ export function taxDetails(people) {
   }
   return [...merged.values()];
 }
-
-/** Reuse the visible two-week allocation only when every amount actually matches. */
-export function fundMatchesBiweekly(people, admin = false) {
-  const fund = nextFunds(people);
-  if (!fund) return false;
-  const values = companyAmounts(people).biweekly;
-  const pairs = [['gross', fund.gross], ['tax', fund.tax], ['net', fund.net], ['owner', fund.allocation.ownerShareCents],
-    ...(admin ? [['costs', fund.allocation.actualCostCents], ['commissions', fund.allocation.commissionCents],
-      ['gang', fund.allocation.gangCutCents], ['yerome', fund.allocation.yeromeCents]]
-      : [['fees', fund.allocation.chargesCents], ['service', fund.allocation.serviceShareCents]])];
-  return pairs.every(([key, amount]) => amount != null && values[key] === amount);
-}
