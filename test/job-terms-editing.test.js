@@ -39,9 +39,7 @@ test('Admin editing sees future terms without using them in as-of statements; da
     if (table === 'jobs') return Response.json([{ id: 'job', owner_id: owner.id, employer_name: 'Test Employer',
       start_date: start, status: 'active' }]);
     if (table === 'job_compensation_terms') {
-      if (url.searchParams.has('effective_from')) return Response.json([]); // Not effective yet.
-      assert.equal(url.searchParams.get('effective_to'), 'is.null');
-      editReads += 1;
+      if (url.searchParams.get('effective_to') === 'is.null') editReads += 1;
       return Response.json([future]);
     }
     if (table === 'v2_change_job_terms') {

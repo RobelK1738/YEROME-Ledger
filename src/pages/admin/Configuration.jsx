@@ -12,14 +12,6 @@ import { money } from '../../lib/presentation/format.js';
 const pct = (rate) => `${Number((rate * 100).toFixed(2))}%`;
 const perMonth = (cents) => <>{money(cents)} <span className="muted">/ month</span></>;
 
-const OPEN_DECISIONS = [
-  { title: 'Partial-month referral eligibility', text: 'Commissions accrue only for complete calendar months until a rule is recorded.' },
-  { title: 'Payout floor for negative quoted net', text: 'A month with negative quoted net needs a signed loss or offset rule before posting.' },
-  { title: 'Commission payment date', text: 'When an accrued commission becomes payable is not yet defined.' },
-  { title: 'Gang Cut destination', text: 'Where the internal Gang Cut is directed is not yet recorded.' },
-  { title: 'Legal treatment of W-2 deposits', text: 'Requires an explicit recorded decision before final settlement.' },
-];
-
 export default function Configuration() {
   const single = TAX_CONFIG_2026.single;
   return <>
@@ -28,17 +20,17 @@ export default function Configuration() {
       meta={<div className="badge-row"><Badge tone="brand" dot={false}>Calculation {PACKAGE_V1.version}</Badge><Badge tone="muted" dot={false}>Tax {single.version}</Badge></div>} />
 
     <Notice tone="info" title="Where to change things">
-      Person-specific apartment charges and agreement versions are edited from each <Link to="/admin/people">US Person</Link>’s
+      Person-specific apartment charges and planning assumptions are edited from each <Link to="/admin/people">US Person</Link>’s
       profile. Package and tax values below change only through a reviewed code release, so they cannot be edited here.
     </Notice>
 
     <div className="grid-2">
-      <Card title="Contract fees" icon="file" subtitle="Agreed charges under the written agreement. Visible to US Persons as charges.">
+      <Card title="Planning charges" icon="file" subtitle="Apartment and service charges used to calculate the owner’s projected split.">
         <DescriptionList items={[
           { label: 'Direct partnership · per active job', value: perMonth(PACKAGE_V1.directVariableQuotedCents), basis: 'contractual' },
           { label: 'Referred partnership · per active job', value: perMonth(PACKAGE_V1.referredVariableQuotedCents), basis: 'contractual' },
           { label: 'Apartment · one per US Person (default)', value: perMonth(PACKAGE_V1.fixedQuotedCents), basis: 'contractual' },
-          { label: 'Contractual partner share', value: '50% of quoted net' },
+          { label: 'Projected owner share', value: '50% of after-tax income less charges' },
         ]} />
       </Card>
       <Card title="Internal cost assumptions" icon="shield" subtitle="YEROME’s real costs and internal allocations. Never shown to US Persons.">
@@ -78,21 +70,6 @@ export default function Configuration() {
       </div>
     </Card>
 
-    <Card title="Settlement readiness" icon="alert" padded={false}
-      subtitle="Decisions that must be recorded before final settlement. Until then Pay Runs records receipts and estimates, and settlement posting stays gated.">
-      <ul className="agenda">
-        {OPEN_DECISIONS.map((item) => (
-          <li className="agenda__item" key={item.title}>
-            <span className="agenda__icon agenda__icon--warn" aria-hidden="true">!</span>
-            <div className="agenda__body">
-              <p className="agenda__title">{item.title}</p>
-              <p className="agenda__meta">{item.text}</p>
-            </div>
-            <Badge tone="warn" dot={false}>Needs decision</Badge>
-          </li>
-        ))}
-      </ul>
-      <div className="card__footer"><Link to="/admin/audit">View audit history</Link></div>
-    </Card>
+
   </>;
 }

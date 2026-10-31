@@ -19,14 +19,14 @@ function JobCard({ job }) {
     <Card className="job-card" icon="briefcase" title={job.employerName} subtitle={job.roleTitle || 'Role not specified'}
       actions={<StatusBadge kind="job" status={job.status} />}>
       {job.needsTermsReview ? (
-        <Notice tone="warn" title="Pay terms under review">YEROME is confirming this job’s pay terms. Estimates for it will appear once review is complete.</Notice>
+        <Notice tone="warn" title="Compensation inputs needed">Add compensation inputs to calculate income for this job.</Notice>
       ) : (
         <DescriptionList items={[
           { label: 'Pay terms', value: payTermsText(job) },
-          { label: 'Typical paycheck gross', hint: `${job.periodsPerYear} pay periods per year`, value: money(job.typicalEmployerPaycheckGrossCents), basis: 'estimate' },
+          { label: 'Expected gross per income date', hint: `${job.periodsPerYear} pay periods per year`, value: money(job.typicalEmployerPaycheckGrossCents), basis: 'estimate' },
           { label: 'Two-week planning gross', value: money(job.normalizedBiweeklyGrossCents), basis: 'estimate' },
-          { label: 'Payroll frequency', value: PAY_FREQUENCY_LABELS[job.payFrequency] || job.payFrequency || '—' },
-          { label: 'First configured payday', value: job.firstPayDate ? formatDate(job.firstPayDate) : 'Not scheduled' },
+          { label: 'Income frequency', value: PAY_FREQUENCY_LABELS[job.payFrequency] || job.payFrequency || '—' },
+          { label: 'First expected income date', value: job.firstPayDate ? formatDate(job.firstPayDate) : 'Not scheduled' },
           job.startDate ? { label: 'Start date', value: formatDate(job.startDate) } : null,
         ]} />
       )}
@@ -39,13 +39,13 @@ export default function OwnerJobs() {
   const header = <PageHeader title="My jobs" subtitle="Your employment and pay terms as recorded by YEROME. Contact YEROME if anything looks wrong." />;
   if (loading) return <>{header}<PageSkeleton header={false} stats={0} rows={4} label="Loading your jobs…" /></>;
   if (error) return <>{header}<ErrorState error={error} onRetry={refresh} /></>;
-  const jobs = [...data.myJobs].sort((a, b) => (ORDER[a.status] ?? 9) - (ORDER[b.status] ?? 9));
+  const jobs = data.myJobs.map((job) => job.status === 'pending' && job.plannedTerms ? { ...job, ...job.plannedTerms, status: 'pending' } : job).sort((a, b) => (ORDER[a.status] ?? 9) - (ORDER[b.status] ?? 9));
   return <>
     {header}
     {jobs.length ? (
       <div className="card-grid">{jobs.map((job) => <JobCard key={job.id} job={job} />)}</div>
     ) : (
-      <Card><EmptyState icon="briefcase" title="No jobs yet" message="YEROME adds your jobs. They’ll appear here with pay terms and pay dates once added." /></Card>
+      <Card><EmptyState icon="briefcase" title="No jobs yet" message="YEROME adds your jobs. They’ll appear here with pay terms and expected income dates once added." /></Card>
     )}
   </>;
 }

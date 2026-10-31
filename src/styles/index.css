@@ -1133,3 +1133,9 @@ input[type='date'].input, input[type='month'].input { min-width: 0; }
   .page-header__actions { flex-direction: column; }
   .page-header__actions > .btn { width: 100%; }
 }
+
+/* Projection narrative and shared fund instructions. */
+.preserve-lines { white-space: pre-wrap; overflow-wrap: anywhere; }
+.section-label { font-size: var(--fs-sm); font-weight: 650; color: var(--text-2); }
+.plan-instructions { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: var(--radius); background: var(--surface-3); }
+#allocation-editor, #assumptions-form { display: flex; flex-direction: column; gap: 20px; }

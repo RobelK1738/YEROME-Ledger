@@ -48,19 +48,14 @@ export function hasCurrentReferral(ownerId, referrals = []) {
 }
 
 /** Why a person's estimate is withheld, in plain language. Empty when estimated. */
-export function reviewReasons(person, referrals = []) {
+export function reviewReasons(person) {
   if (!person || person.projectionAvailable || person.personStatus === 'archived') return [];
   const reasons = [];
-  if (person.personStatus === 'inactive') reasons.push({ key: 'access', label: 'Sign-in access is paused' });
-  if (!person.agreementVerifiedAt) reasons.push({ key: 'agreement', label: 'Signed agreement not verified' });
-  if (person.partnership === 'MIKI_REFERRAL_2_WAY' && !hasCurrentReferral(person.ownerId, referrals)) {
-    reasons.push({ key: 'referral', label: 'Referred partnership has no current referral record' });
-  }
-  if (person.apartmentQuotedMonthlyCents == null) reasons.push({ key: 'apartment', label: 'Apartment terms missing' });
-  if ((person.myJobs || []).some((job) => job.status === 'active' && job.needsTermsReview)) {
-    reasons.push({ key: 'terms', label: 'An active job is missing pay terms' });
-  }
-  if (!reasons.length) reasons.push({ key: 'inputs', label: 'Estimate inputs need review' });
+  if (!person.partnership) reasons.push({ key: 'partnership', label: 'Choose a partnership model' });
+  if (person.stateSupported === false) reasons.push({ key: 'state', label: 'State tax assumptions are not configured' });
+  if ((person.myJobs || []).some((job) => job.status === 'active' && job.needsTermsReview))
+    reasons.push({ key: 'terms', label: 'An active job is missing compensation terms' });
+  if (!reasons.length) reasons.push({ key: 'inputs', label: 'Complete the projection inputs' });
   return reasons;
 }
 

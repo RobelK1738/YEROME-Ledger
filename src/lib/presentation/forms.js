@@ -13,7 +13,7 @@ const laterOf = (date, today) => (date && date > today ? date : today);
 
 export function emptyPersonForm() {
   return { displayName: '', username: '', password: '', filingStatus: 'single',
-    partnership: 'DIRECT_2_WAY', agreementReference: '', agreementVerified: false };
+    partnership: 'DIRECT_2_WAY' };
 }
 
 // ---------------------------------- Jobs ----------------------------------

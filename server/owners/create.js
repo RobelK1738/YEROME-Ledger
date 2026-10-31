@@ -27,8 +27,6 @@ export default async function handler(req, res) {
   const filingStatus = FILING_STATUSES.includes(body.filingStatus) ? body.filingStatus : 'single';
   const partnership = PARTNERSHIPS.includes(body.partnership) ? body.partnership : null;
   const state = body.state || 'TX';
-  const agreementReference = String(body.agreementReference || '').trim();
-  const agreementVerified = body.agreementVerified === true && Boolean(agreementReference);
   const notes = body.notes || null;
 
   const uErr = validateUsername(username);
@@ -39,9 +37,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Display name is required.' });
   }
   if (!partnership) return res.status(400).json({ error: 'Choose a confirmed partnership model.' });
-  if (body.agreementVerified && !agreementReference) {
-    return res.status(400).json({ error: 'Agreement reference is required to mark it verified.' });
-  }
 
   const admin = adminClient();
   const { ownerAuthDomain } = getEnv();
@@ -89,15 +84,15 @@ export default async function handler(req, res) {
     p_partnership: partnership,
     p_actual_apartment_cents: 65000,
     p_quoted_apartment_cents: 90000,
-    p_reference: agreementReference,
-    p_verified: agreementVerified,
+    p_reference: '',
+    p_verified: false,
     p_effective_from: new Date().toISOString().slice(0, 10),
     p_actor: auth.user.id,
   });
   if (apartmentErr) {
     await admin.from('owners').delete().eq('id', owner.id);
     await admin.auth.admin.deleteUser(authUserId).catch(() => {});
-    return res.status(500).json({ error: 'Could not create agreement record.' });
+    return res.status(500).json({ error: 'Could not save planning inputs.' });
   }
 
   // 3) Stamp owner_id into app_metadata for fast RLS lookups.
@@ -111,7 +106,7 @@ export default async function handler(req, res) {
     entityType: 'owner',
     entityId: owner.id,
     metadata: { username, display_name: owner.display_name, filing_status: filingStatus,
-      partnership, agreement_verified: agreementVerified },
+      partnership, planning_ready: true },
   });
 
   return res.status(200).json({ ok: true, owner });

@@ -25,7 +25,7 @@ function taxYearWagesForJob(job, taxYear) {
   return roundRatio(job.annualGrossCents, included, yearDays);
 }
 
-function jobProjection(job) {
+export function jobProjection(job) {
   const terms = termsFor(job);
   if (!terms) return {
     id: job.id, employerName: job.employer_name, status: job.status,
@@ -107,9 +107,11 @@ export function projectPerson({ owner, jobs = [], apartment = null, paychecks = 
   });
   const monthlyAfterTaxCents = roundRatio(annualGrossCents - runRateTaxEstimate.totalTaxCents, 1, 12);
   const stateSupported = owner.state === 'TX';
-  const projectionAvailable = Boolean(owner.status === 'active' && owner.v2_partnership && owner.agreement_verified_at &&
-    (owner.v2_partnership !== 'MIKI_REFERRAL_2_WAY' || hasVerifiedReferral) &&
-    apartment && apartment.lease_active !== false && !incompleteTerms && stateSupported);
+  // Planning uses Admin-entered inputs. Verification and payment evidence belong
+  // to historical settlement, and must never gate an estimate.
+  const projectionAvailable = Boolean(owner.status !== 'archived' &&
+    ['DIRECT_2_WAY', 'MIKI_REFERRAL_2_WAY'].includes(owner.v2_partnership) &&
+    !incompleteTerms && stateSupported);
   const packageVersion = {
     ...PACKAGE_V1,
     fixedActualCents: Number(apartment?.actual_monthly_cents ?? PACKAGE_V1.fixedActualCents),
@@ -187,6 +189,12 @@ export function ownerStatementDto(projected) {
     })),
     nextPayDate: projected.nextPayDate,
     annualGrossEstimateCents: projected.annualGrossCents,
+    monthlyGrossEstimateCents: roundRatio(projected.annualGrossCents, 1, 12),
+    monthlyTaxEstimateCents: projected.stateSupported
+      ? roundRatio(projected.annualGrossCents, 1, 12) - projected.monthlyAfterTaxCents : null,
+    runRateAnnualTaxEstimateCents: projected.stateSupported ? projected.runRateTaxEstimate.totalTaxCents : null,
+    stateSupported: projected.stateSupported,
+    partnershipConfigured: ['DIRECT_2_WAY', 'MIKI_REFERRAL_2_WAY'].includes(projected.owner.v2_partnership),
     taxYearProjectedWagesCents: projected.taxYearWagesCents,
     annualTaxLiabilityEstimateCents: projected.stateSupported ? projected.taxEstimate?.totalTaxCents ?? null : null,
     annualTaxNeedsReview: projected.annualTaxNeedsReview,
@@ -213,8 +221,8 @@ export function adminStatementDto(projected) {
     partnership: projected.owner.v2_partnership,
     agreementVerifiedAt: projected.owner.agreement_verified_at,
     currentAgreementEffectiveFrom: projected.agreementEffectiveFrom,
-    apartmentActualMonthlyCents: projected.apartment?.actual_monthly_cents ?? null,
-    apartmentQuotedMonthlyCents: projected.apartment?.quoted_monthly_cents ?? null,
+    apartmentActualMonthlyCents: projected.apartment?.actual_monthly_cents ?? PACKAGE_V1.fixedActualCents,
+    apartmentQuotedMonthlyCents: projected.apartment?.quoted_monthly_cents ?? PACKAGE_V1.fixedQuotedCents,
     actualCostMonthlyCents: s?.actualCostCents ?? null,
     personShareMonthlyCents: s?.personShareCents ?? null,
     commissionMonthlyCents: s?.commissionCents ?? null,

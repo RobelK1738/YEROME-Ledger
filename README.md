@@ -1,10 +1,13 @@
 # YEROME Ledger v2
 
-Review-stage finance and operations app for YEROME Admin and read-only US
-Persons. The v2 branch implements exact-cent direct/referral planning,
-combined-person 2026 tax estimates, hourly job terms, dated employer receipt
-tracking, full-month referral accruals and scoped statements. It is **not yet
-approved for production or real partner settlement**.
+A shared income estimation and projection tool for YEROME Admin and owners.
+Both portals tell one story: job income sources, estimated taxes and charges,
+profit and splits, referral commission sources, next expected income, and
+Admin’s simple instructions for allocating the next fund.
+
+Estimates require job compensation inputs and a partnership model. Agreement
+verification, generated paycheck rows, receipts, transfers and settlement
+posting do not gate projections. Historical finance records are preserved.
 
 ## Read first
 
@@ -17,17 +20,24 @@ part of the tracked repository.
 
 ## Architecture
 
-React/Vite renders Admin Overview, US Persons, Pay Runs, Configuration/Audit,
-and US Person Home, My Jobs, Payments, with Commissions for an authorized
-referrer. Supabase Auth supplies identity. Vercel `/api` handlers revalidate it
-and return explicit role-specific DTOs. PostgreSQL RLS closes direct partner
-access to legacy finance tables. Privileged mutations run on the server with
-the service-role key. The pure business engine and tax model are in
-`src/lib/finance-v2/` and `src/lib/calculations/`.
+React/Vite renders the Admin financial overview, Owners, Jobs, Projections &
+allocation, and the Owner financial picture, My Jobs, What’s next and optional
+Commission projections. Supabase Auth supplies identity. Vercel `/api` handlers
+revalidate it and return explicit role-specific DTOs. Owners cannot read other
+owners or Admin’s actual spending and internal margins.
 
-The tax model currently supports 2026 Texas planning only. Partner shares are
-steady-state monthly estimates; paystub net deposits and referral payments are
-separate recorded facts. A scheduled payday is not a settlement.
+The existing exact-cent monthly engine and 2026 Texas tax model remain in
+`src/lib/finance-v2/` and `src/lib/calculations/`. `forecast.js` derives expected
+income dates from dated compensation terms and job status; it writes no
+paycheck records. Net forecasts allocate each owner’s combined annual tax rate
+to expected gross income. Suggested fund allocations scale monthly assumptions
+to the next inflow and preserve cents. They are projections, not payroll facts.
+The forecast stops at December 31, 2026 until another tax year is configured.
+
+`v3_projection_plans` stores only current partnership/apartment overrides,
+optional planned fund date, and shared Admin instructions. The new migration
+must be applied before deploying this branch. The API and existing audit log
+handle saves; no workflow engine or payment state was added.
 
 ## Develop and verify
 
