@@ -153,7 +153,7 @@ export default function JobForm() {
         </FormSection>
 
         <FormSection step="4" title="Start date">
-          <Field label="Job start date" optional hint="Future jobs start counting automatically on this date.">
+          <Field label="Job start date" optional hint="For reference only. The job contributes to projections as soon as it is saved.">
             <TextInput type="date" value={job.startDate} onChange={(e) => set('startDate', e.target.value)} />
           </Field>
         </FormSection>

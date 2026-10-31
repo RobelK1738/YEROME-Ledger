@@ -15,18 +15,21 @@ apartment amounts use the existing $900 charge/$650 cost defaults. A missing
 partnership or active-job compensation prevents a full split; unsupported state
 taxes remain unavailable. Pausing sign-in does not erase business projections.
 
-Expected employer income dates are derived from the job’s saved pay details,
-cadence and first expected date. Future job starts affect future forecasts and
-do not inflate today’s run rate. Job setup and editing have no separate terms
-review, effective date or activation step. Existing saved compensation inputs
-are read automatically; normal edits update current planning immediately. Pauses and end dates are honored.
-Net income uses the combined annual effective tax rate for the owner, rather
-than taxing each employer separately. Forecasts stop at the end of configured
-2026 assumptions. Next-inflow allocations scale the monthly formula, so they
-are equivalent planning amounts rather than a calendar-month settlement.
+The financial story always assumes every saved, unpaused job has started.
+Start dates are informational only and never delay or prorate gross income,
+annual tax assumptions, monthly shares, costs, profit, splits or commissions.
+Legacy pending jobs are included immediately. Current saved inputs determine
+projections; dated compensation/status history does not control this story.
 
-Commission projections use $200 per active referred job and the recorded
-referral relationship; they do not require posted accruals or payment evidence.
+Expected employer income dates use only the first pay date and frequency.
+The next 90 days remain visible across a year boundary, using the configured
+2026 Texas tax assumptions. Net income uses the owner’s combined annual tax
+rate. Next-inflow allocations scale the full monthly formula and conserve cents.
+Job setup and editing have no review, effective-date or activation step.
+Historical compensation and finance records remain untouched.
+
+Commission projections use $200 per included referred job and the active
+recorded referral relationship, regardless of future start dates; they do not require posted accruals or payment evidence.
 An unlinked referral-partnership job still includes commission expense in the
 Admin projection; the recipient is attributed when Admin records the link.
 Referral names retain the existing disclosure setting.

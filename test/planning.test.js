@@ -22,13 +22,13 @@ test('planning needs no agreement, apartment record, referral verification or pa
   }
 });
 
-test('future jobs forecast from submitted terms without increasing current income', () => {
+test('future jobs immediately project full income and schedule payments from the first pay date', () => {
   const future = job({ start_date: '2026-11-02', termsHistory: [term({ effective_from: '2026-11-02', first_pay_date: '2026-11-13' })] });
   const f = incomeForecast({ owner, jobs: [future], asOf: '2026-10-30' });
   assert.equal(f.nextDate, '2026-11-13');
   assert.equal(f.nextGrossCents, 200000);
   assert.ok(f.nextNetCents > 0);
-  assert.ok(f.upcoming.every((row) => row.date >= '2026-11-13' && row.date <= '2026-12-31'));
+  assert.ok(f.upcoming.every((row) => row.date >= '2026-11-13' && row.date <= f.end));
 });
 
 test('next-fund allocations conserve cents in both views and private costs stay private', () => {
@@ -42,22 +42,27 @@ test('next-fund allocations conserve cents in both views and private costs stay 
     assert.equal(JSON.stringify(publicForecast).includes(key), false);
 });
 
-test('forecasts honor future pay terms, pauses, job ends and anchored month ends', () => {
-  const f = incomeForecast({ owner, asOf: '2026-10-01', jobs: [job({ termsHistory: [
-    term({ mode: 'salary', annual_salary_cents: 1200000, periods_per_year: 12, pay_frequency: 'monthly', first_pay_date: '2026-01-31', effective_to: '2026-10-31' }),
-    term({ hourly_rate_cents: 3000, effective_from: '2026-11-01', first_pay_date: '2026-11-13' }),
-  ], statusHistory: [{ status: 'active', effective_from: '2026-01-01' }, { status: 'paused', effective_from: '2026-12-01' }] })] });
-  assert.deepEqual(f.upcoming.map((row) => [row.date, row.grossCents]), [
-    ['2026-10-31', 100000], ['2026-11-13', 240000], ['2026-11-27', 240000],
-  ]);
-  assert.equal(incomeForecast({ owner, asOf: '2026-11-01', jobs: [job({ end_date: '2026-10-30' })] }).upcoming.length, 0);
+test('only the first pay date and frequency place income on the calendar', () => {
+  const future = job({ status: 'pending', start_date: '2027-02-01', end_date: '2025-12-31',
+    termsHistory: [term({ first_pay_date: '2026-11-13', effective_from: '2027-02-01' })],
+    statusHistory: [{ status: 'paused', effective_from: '2026-12-01' }] });
+  const f = incomeForecast({ owner, asOf: '2026-10-30', jobs: [future] });
+  assert.equal(f.nextDate, '2026-11-13');
+  assert.ok(f.upcoming.some((row) => row.date === '2027-01-08'));
+  assert.ok(f.upcoming.every((row) => row.grossCents === 200000));
+  assert.equal(incomeForecast({ owner, asOf: '2026-10-30', jobs: [job({ status: 'paused' })] }).upcoming.length, 0);
+  assert.equal(incomeForecast({ owner, asOf: '2026-10-30', jobs: [job({ status: 'ended' })] }).upcoming.length, 0);
+  const monthly = incomeForecast({ owner, asOf: '2026-10-01', horizonDays: 123, jobs: [job({
+    termsHistory: [term({ mode: 'salary', annual_salary_cents: 1200000, periods_per_year: 12,
+      pay_frequency: 'monthly', first_pay_date: '2026-01-31' })] })] });
+  assert.deepEqual(monthly.upcoming.map((row) => row.date), ['2026-10-31', '2026-11-30', '2026-12-31', '2027-01-31']);
 });
 
 test('incomplete active compensation leaves net estimates unavailable instead of undertaxing', () => {
   const f = incomeForecast({ owner, asOf: '2026-10-30', jobs: [job(), job({ id: 'missing', termsHistory: [] })] });
   assert.equal(f.nextNetCents, null);
   assert.equal(f.allocation, null);
-  assert.match(f.warnings.join(' '), /compensation terms/);
+  assert.match(f.warnings.join(' '), /pay details/);
 });
 
 test('anonymous referral commission sources do not reveal other owners or their employers', () => {

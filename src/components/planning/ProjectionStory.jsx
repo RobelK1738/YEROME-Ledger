@@ -11,11 +11,11 @@ export function IncomeSources({ person }) {
   const jobs = person.myJobs || [];
   const columns = [
     { key: 'job', header: 'Income source', mobile: 'title', render: (row) => <div className="cell-stack"><strong>{row.employerName}</strong><span className="cell-sub">{row.roleTitle || 'Job'} · {payTermsText(row) || 'Pay details not entered'}</span></div> },
-    { key: 'status', header: 'Status', mobile: 'badge', render: (row) => <Badge tone={row.status === 'active' ? 'ok' : 'muted'}>{row.status === 'pending' ? 'Planned' : row.status}</Badge> },
+    { key: 'status', header: 'Status', mobile: 'badge', render: (row) => <Badge tone={row.status === 'active' ? 'ok' : 'muted'}>{row.status}</Badge> },
     { key: 'gross', header: 'Gross / month', align: 'right', mobile: 'amount', render: (row) => money(row.status === 'active' && row.annualGrossCents != null ? Math.round(row.annualGrossCents / 12) : null) },
   ];
   return <Card title="Where income comes from" icon="briefcase" padded={false}
-    subtitle={`${plural(person.activeJobCount, 'active job')} · ${plural(jobs.length, 'job')} submitted. Planned jobs enter the forecast when they start.`}>
+    subtitle={`${plural(person.activeJobCount, 'job')} in projection · ${plural(jobs.length, 'job')} submitted. Income and splits assume the included jobs have started.`}>
     <DataTable label="Job income sources" columns={columns} rows={jobs} emptyTitle="No jobs submitted" emptyMessage="Add job rates, expected hours and income dates to begin projecting." />
   </Card>;
 }
@@ -30,8 +30,8 @@ export function MonthlyBreakdown({ person: p, admin = false }) {
     { label: admin ? 'Owner share · 50%' : 'Your job share · 50%', value: money(p.myShareMonthlyCents), total: true },
   ];
   const commission = p.commissionIncomeMonthlyCents || 0;
-  return <Card title="How the monthly estimate breaks down" icon="scale" subtitle="Current job rates and expected hours, expressed as a typical month.">
-    {!p.projectionAvailable ? <Notice tone="warn">{!p.stateSupported ? 'Tax assumptions are available for Texas in 2026 only.' : !p.partnershipConfigured ? 'Admin needs to choose the partnership model.' : 'Complete the compensation terms for active jobs to calculate the full split.'} Available income sources remain visible below.</Notice> : null}
+  return <Card title="How the monthly estimate breaks down" icon="scale" subtitle="As if all included jobs have started, using saved rates and expected hours for a typical month.">
+    {!p.projectionAvailable ? <Notice tone="warn">{!p.stateSupported ? 'Tax assumptions are available for Texas in 2026 only.' : !p.partnershipConfigured ? 'Admin needs to choose the partnership model.' : 'Complete the saved pay details to calculate the full split.'} Available income sources remain visible below.</Notice> : null}
     <DescriptionList items={rows} />
     {commission > 0 ? <DescriptionList items={[
       { label: 'Referral commission income', value: money(commission) },
@@ -62,7 +62,7 @@ export function Forecast({ person: p, admin = false, compact = false }) {
     { key: 'tax', header: 'Tax estimate', align: 'right', hideOnMobile: true, render: (row) => money(row.taxCents) },
     { key: 'net', header: 'After-tax estimate', align: 'right', mobile: 'amount', render: (row) => money(row.netCents) },
   ];
-  return <Card title="Next expected income & allocation" icon="calendar" subtitle={f?.nextDate ? `Expected ${formatDate(f.nextDate)} · from job schedules` : 'Dates are calculated from submitted job terms.'}>
+  return <Card title="Next expected income & allocation" icon="calendar" subtitle={f?.nextDate ? `Expected ${formatDate(f.nextDate)} · from job schedules` : 'Dates are calculated from the first pay date and frequency.'}>
     {f?.nextDate ? <>
       <DescriptionList items={[
         { label: 'Expected gross funds', value: money(f.nextGrossCents) },
@@ -88,7 +88,7 @@ export function Forecast({ person: p, admin = false, compact = false }) {
     {f?.warnings?.map((warning) => <Notice key={warning} tone="info">{warning}</Notice>)}
     {!compact && f?.upcoming?.length ? <DataTable label="Upcoming estimated income" columns={columns} rows={f.upcoming}
       getRowKey={(row) => `${row.jobId}:${row.date}`} mobilePageSize={10} /> : null}
-    <p className="footnote">{f?.basis} Forecast shown through {formatDate(f?.end)}; later tax years need configured assumptions.</p>
+    <p className="footnote">{f?.basis} Forecast shown through {formatDate(f?.end)}.</p>
   </Card>;
 }
 

@@ -63,8 +63,8 @@ export default function PeopleList() {
     ), renderMobile: (person) => person.displayName },
     { key: 'status', header: 'Status', mobile: 'badge', render: (person) => <StatusBadge kind="person" status={person.personStatus} /> },
     { key: 'jobs', header: 'Jobs', mobile: 'meta', render: (person) =>
-      `${person.activeJobCount} active${person.myJobs.length > person.activeJobCount ? ` of ${person.myJobs.length}` : ''}`,
-    renderMobile: (person) => plural(person.activeJobCount, 'active job') },
+      `${person.activeJobCount} included${person.myJobs.length > person.activeJobCount ? ` of ${person.myJobs.length}` : ''}`,
+    renderMobile: (person) => plural(person.activeJobCount, 'job in projection') },
     { key: 'share', header: 'Partner share · est. / month', align: 'right', mobile: 'amount', render: (person) =>
       person.projectionAvailable ? <span className="num">{money(person.myShareMonthlyCents)}</span>
         : <Badge tone="warn" dot={false}>Needs review</Badge>,

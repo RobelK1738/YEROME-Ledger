@@ -75,7 +75,7 @@ test('unsupported state blocks partner and tax amounts', () => {
   assert.equal(dto.taxReconciliation, null);
 });
 
-test('dated employment changes tax-year liability without changing monthly run rate', () => {
+test('start dates never prorate projected wages, taxes or shares', () => {
   const full = projectPerson({ owner, jobs: [hourly('one', 1850, 35)],
     apartment: { actual_monthly_cents: 65000, quoted_monthly_cents: 90000 },
     taxYear: 2026 });
@@ -85,8 +85,8 @@ test('dated employment changes tax-year liability without changing monthly run r
     taxYear: 2026 });
   assert.equal(full.annualGrossCents, partial.annualGrossCents);
   assert.equal(full.statement.personShareCents, partial.statement.personShareCents);
-  assert.ok(partial.taxYearWagesCents < full.taxYearWagesCents);
-  assert.ok(partial.taxEstimate.totalTaxCents < full.taxEstimate.totalTaxCents);
+  assert.equal(partial.taxYearWagesCents, full.taxYearWagesCents);
+  assert.equal(partial.taxEstimate.totalTaxCents, full.taxEstimate.totalTaxCents);
 });
 
 test('only 2026 paid dates contribute to 2026 withholding reconciliation', () => {
@@ -113,7 +113,7 @@ test('salary employer paycheck cadence differs from normalized two-week equivale
   }
 });
 
-test('changed terms suppress annual tax and gap rather than projecting old wages at new rate', () => {
+test('historical pay versions never withhold the current income projection', () => {
   const job = hourly('one', 2200, 40);
   job.termsHistory = [
     { effective_from: '2026-01-01', effective_to: '2026-06-30' },
@@ -122,9 +122,9 @@ test('changed terms suppress annual tax and gap rather than projecting old wages
   const projected = projectPerson({ owner, jobs: [job], taxYear: 2026,
     apartment: { actual_monthly_cents: 65000, quoted_monthly_cents: 90000 } });
   const dto = ownerStatementDto(projected);
-  assert.equal(dto.annualTaxNeedsReview, true);
-  assert.equal(dto.annualTaxLiabilityEstimateCents, null);
-  assert.equal(dto.taxReconciliation.projectedGapCents, null);
+  assert.equal(dto.annualTaxNeedsReview, false);
+  assert.ok(dto.annualTaxLiabilityEstimateCents > 0);
+  assert.ok(Number.isSafeInteger(dto.taxReconciliation.projectedGapCents));
   assert.ok(dto.myShareMonthlyCents > 0);
 });
 
@@ -151,12 +151,12 @@ test('a pause or later resume never erases earlier received tax-year wages', () 
       jobs: [{ ...hourly('one', 1850, 35), status, statusHistory: events }],
       paychecks: [received], asOf: '2026-11-02' });
     const dto = ownerStatementDto(projected);
-    assert.equal(dto.annualTaxNeedsReview, true);
-    assert.equal(dto.taxYearProjectedWagesCents, null);
-    assert.equal(dto.annualTaxLiabilityEstimateCents, null);
+    assert.equal(dto.annualTaxNeedsReview, false);
+    assert.equal(dto.taxYearProjectedWagesCents, status === 'active' ? 3367000 : 0);
+    assert.ok(Number.isSafeInteger(dto.annualTaxLiabilityEstimateCents));
     assert.equal(dto.taxReconciliation.actualWithholdingCents, 30000);
     assert.equal(dto.taxReconciliation.actualNetReceivedCents, 120000);
-    assert.equal(dto.taxReconciliation.projectedGapCents, null);
+    assert.ok(Number.isSafeInteger(dto.taxReconciliation.projectedGapCents));
   }
 });
 

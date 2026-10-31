@@ -15,7 +15,7 @@ export default function OwnerHome() {
   return <>
     <PageHeader title={`${p.displayName}’s financial picture`} subtitle="Your jobs, projected income and split, with a clear plan for what comes next." />
     <StatGrid columns={4}>
-      <StatCard label="Active jobs" value={p.activeJobCount} icon="briefcase" />
+      <StatCard label="Jobs in projection" value={p.activeJobCount} icon="briefcase" />
       <StatCard label="Your projected income / month" value={money(p.myShareMonthlyCents == null ? null : p.myShareMonthlyCents + commission)} basis="estimate" emphasis hint="Job share + referral commissions" />
       <StatCard label="Commission income / month" value={money(commission)} basis="estimate" />
       <StatCard label="Next expected job income" value={p.forecast?.nextDate ? formatDate(p.forecast.nextDate) : 'Date needed'} hint={p.forecast?.nextNetCents != null ? `${money(p.forecast.nextNetCents)} after estimated taxes` : 'Based on submitted job schedules'} />

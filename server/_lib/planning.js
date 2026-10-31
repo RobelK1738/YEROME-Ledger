@@ -1,6 +1,6 @@
 import { allPages } from './v2.js';
-import { projectPerson, ownerStatementDto, adminStatementDto, jobProjection } from '../../src/lib/finance-v2/projection.js';
-import { incomeForecast, jobOn, ownerForecastDto } from '../../src/lib/finance-v2/forecast.js';
+import { projectPerson, ownerStatementDto, adminStatementDto } from '../../src/lib/finance-v2/projection.js';
+import { incomeForecast, planningJob, ownerForecastDto } from '../../src/lib/finance-v2/forecast.js';
 import { allocationPlanDto } from '../../src/lib/finance-v2/allocation-plan.js';
 import { PACKAGE_V1 } from '../../src/lib/finance-v2/index.js';
 
@@ -25,13 +25,9 @@ export async function loadPlanningPerson(db, ownerId, asOf) {
       .eq('owner_id', ownerId).limit(1).then(rows),
   ]);
   const ids = jobs.map((job) => job.id);
-  const [terms, events] = ids.length ? await Promise.all([
-    allPages(() => db.from('job_compensation_terms')
-      .select('job_id,mode,hourly_rate_cents,expected_weekly_hours,annual_salary_cents,pay_frequency,first_pay_date,periods_per_year,effective_from,effective_to')
-      .in('job_id', ids).order('effective_from', { ascending: false }).order('id')),
-    allPages(() => db.from('v2_job_status_events').select('job_id,status,effective_from,event_order')
-      .in('job_id', ids).order('effective_from').order('event_order')),
-  ]) : [[], []];
+  const terms = ids.length ? await allPages(() => db.from('job_compensation_terms')
+    .select('job_id,mode,hourly_rate_cents,expected_weekly_hours,annual_salary_cents,pay_frequency,first_pay_date,periods_per_year,effective_from,effective_to')
+    .in('job_id', ids).order('effective_from', { ascending: false }).order('id')) : [];
   const plan = planRows[0];
   const owner = { ...result.data, v2_partnership: plan?.partnership || agreements[0]?.partnership || result.data.v2_partnership };
   const apartment = {
@@ -41,18 +37,11 @@ export async function loadPlanningPerson(db, ownerId, asOf) {
   const rawJobs = jobs.map((job) => {
     const legacy = terms.filter((row) => row.job_id === job.id);
     const saved = job.planning_pay_details || legacy.find((row) => !row.effective_to) || legacy[0];
-    return { ...job,
-      termsHistory: saved ? [{ ...saved, effective_from: job.start_date || '2026-01-01', effective_to: null }] : [],
-      statusHistory: events.filter((row) => row.job_id === job.id) };
+    return planningJob({ ...job, terms: saved });
   });
-  const projected = projectPerson({ owner, jobs: rawJobs.map((job) => jobOn(job, asOf)), apartment, asOf, taxYear: 2026 });
-  // Submitted details remain visible before a future job starts. Only dated,
-  // active jobs contribute to today's income totals.
-  projected.myJobs = projected.myJobs.map((job) => {
-    const raw = rawJobs.find((row) => row.id === job.id);
-    const saved = raw.termsHistory.find((row) => !row.effective_to) || raw.termsHistory[0];
-    return { ...job, missingPayDetails: !saved, savedPayDetails: saved ? jobProjection({ ...raw, terms: saved }) : null };
-  });
+  const projected = projectPerson({ owner, jobs: rawJobs, apartment, asOf, taxYear: 2026 });
+  projected.myJobs = projected.myJobs.map((job) => ({ ...job,
+    savedPayDetails: job.compensationMode ? { ...job } : null }));
   return { projected, forecast: incomeForecast({ owner, jobs: rawJobs, apartment, asOf }),
     allocationPlan: allocationPlanDto(plan), rawJobs };
 }
@@ -72,10 +61,6 @@ export async function loadCommissionProjections(db, asOf, referrerId = null) {
     if (referrerId) query = query.eq('referrer_owner_id', referrerId);
     return query;
   });
-  const ids = referrals.map((row) => row.id);
-  const status = ids.length ? await allPages(() => db.from('v2_referral_status_events')
-    .select('referral_id,active,effective_from,event_order').in('referral_id', ids)
-    .lte('effective_from', asOf).order('effective_from').order('event_order')) : [];
   const cache = new Map();
   async function person(id) {
     if (!cache.has(id)) cache.set(id, loadPlanningPerson(db, id, asOf));
@@ -85,9 +70,7 @@ export async function loadCommissionProjections(db, asOf, referrerId = null) {
   for (const referral of referrals) {
     const [referred, referrer] = await Promise.all([person(referral.referred_owner_id), person(referral.referrer_owner_id)]);
     if (!referred || !referrer || referrer.projected.owner.status === 'archived') continue;
-    const latest = status.filter((row) => row.referral_id === referral.id).at(-1);
-    const eligible = Boolean((latest ? latest.active : referral.active) && referral.start_date <= asOf &&
-      (!referral.end_date || referral.end_date >= asOf) &&
+    const eligible = Boolean(referral.active &&
       referred.projected.owner.status !== 'archived' &&
       referred.projected.owner.v2_partnership === 'MIKI_REFERRAL_2_WAY');
     const jobs = referred.projected.myJobs.filter((job) => job.status === 'active');

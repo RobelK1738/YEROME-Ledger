@@ -29,10 +29,12 @@ owners or Admin’s actual spending and internal margins.
 The existing exact-cent monthly engine and 2026 Texas tax model remain in
 `src/lib/finance-v2/` and `src/lib/calculations/`. `forecast.js` derives expected
 income dates from saved job pay details, start date and job status; it writes no
-paycheck records. Net forecasts allocate each owner’s combined annual tax rate
-to expected gross income. Suggested fund allocations scale monthly assumptions
+paycheck records. Every saved, unpaused job contributes immediately as if it has started; start
+dates never delay, prorate or suppress estimates. Net forecasts allocate each
+owner’s combined annual tax rate to expected gross income. Suggested fund allocations scale monthly assumptions
 to the next inflow and preserve cents. They are projections, not payroll facts.
-The forecast stops at December 31, 2026 until another tax year is configured.
+The next 90 days of expected income use the configured 2026 Texas tax
+assumptions, including dates beyond the calendar year.
 
 `v3_projection_plans` stores only current partnership/apartment overrides,
 optional planned fund date, and shared Admin instructions. The new migration
@@ -60,7 +62,7 @@ a newly migrated disposable database.
 
 Job setup is one form. Pay details and the first pay date are stored once on
 the job and can be edited normally, including on the same day. There is no
-terms review, separate effective date or future-job activation step. Existing
+terms review, separate effective date, Planned status or future-job activation step. Existing
 saved compensation is read automatically; historical version rows stay intact.
 
 Apply the additive `simple_job_pay_details` migration before deploying the

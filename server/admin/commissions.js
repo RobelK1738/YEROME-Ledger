@@ -59,7 +59,6 @@ export default async function handler(req, res) {
       };
     });
     res.setHeader('Cache-Control', 'private, no-store');
-    const today = new Date().toISOString().slice(0, 10);
     return res.status(200).json({
       referrals: referrals.map((referral) => ({
         id: referral.id,
@@ -67,8 +66,7 @@ export default async function handler(req, res) {
         referredOwnerId: referral.referred_owner_id,
         referrerName: names.get(referral.referrer_owner_id) || 'US Person',
         referredName: names.get(referral.referred_owner_id) || 'US Person',
-        relationshipCurrent: Boolean(referral.active && referral.start_date <= today &&
-          (!referral.end_date || referral.end_date >= today)),
+        relationshipCurrent: referral.active === true,
         startDate: referral.start_date, endDate: referral.end_date,
         needsContractReview: referral.commission_basis_type !== 'flat_per_active_job_month',
       })),
