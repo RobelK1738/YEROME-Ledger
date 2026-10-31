@@ -2,7 +2,7 @@ import { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { money, formatDate, plural } from '../../lib/presentation/format.js';
 import { payTermsText } from '../../lib/presentation/people.js';
-import { statementAmounts, companyAmounts, nextFunds, costDetails, taxDetails, fundMatchesBiweekly } from '../../lib/presentation/statement.js';
+import { statementAmounts, companyAmounts, nextFunds, costDetails, taxDetails } from '../../lib/presentation/statement.js';
 import { roundRatio } from '../../lib/finance-v2/index.js';
 
 function AmountRow({ label, hint, month, biweekly, kind = '', negative = false, hidden = false, id }) {
@@ -100,50 +100,11 @@ export function Breakdown({ person, people, admin = false, commissions = [] }) {
   </section>;
 }
 
-export function NextFund({ person, people, admin = false, onEdit }) {
-  const entries = people || [person];
-  const fund = nextFunds(entries);
-  const plan = person?.allocationPlan;
-  const sameAllocation = fund && fundMatchesBiweekly(entries, admin);
-  const allocation = fund?.allocation;
-  const rows = fund ? [
-    ['Expected gross', fund.gross], ['Tax reserve', fund.tax],
-    ...(admin ? [['Operating costs', allocation.actualCostCents],
-      ...(people ? entries.filter((p) => p.forecast?.nextDate === fund.date)
-        .map((p) => [`${p.displayName} · share`, p.forecast.allocation?.ownerShareCents ?? null]) : [['Owner share', allocation.ownerShareCents]]),
-      ...(allocation.commissionCents ? [['Referral commissions', allocation.commissionCents]] : []),
-      ['Gang allocation', allocation.gangCutCents], ['YEROME keeps', allocation.yeromeCents]]
-      : [['Service charges', allocation.chargesCents], ['Your share', allocation.ownerShareCents], ['YEROME share', allocation.serviceShareCents]]),
-  ] : [];
-  const dates = new Map();
-  for (const p of entries) for (const row of p.forecast?.upcoming || []) {
-    if (!dates.has(row.date)) dates.set(row.date, []);
-    dates.get(row.date).push({ ...row, personName: p.displayName });
-  }
-  const upcoming = [...dates].sort(([a], [b]) => a.localeCompare(b)).slice(0, 8);
-  const savedInstructions = people?.filter((p) => p.allocationPlan?.instructions) || [];
-  return <section className="statement-next" aria-label="Next funds and instructions">
-    <div className="statement-next__allocation">
-      <p className="statement-kicker">Next expected income</p>
-      <h2 className="next-fund-date">{fund ? formatDate(fund.date) : 'Pay date needed'}</h2>
-      <p className="statement-note">{fund ? [...new Set(fund.sources.map((source) => source.employerName))].join(', ') : 'Admin can add a first pay date to the job.'}</p>
-      {sameAllocation ? <p className="statement-note">Use the <strong>Every 2 weeks</strong> allocation above for this fund.</p> : fund ? <details className="statement-disclosure"><summary>Allocation for this date</summary>
-        <dl className="fund-lines">{rows.map(([label, amount]) => <div key={label}><dt>{label}</dt><dd>{money(amount)}</dd></div>)}</dl>
-        <p className="statement-note">Only jobs paying on this date are included.</p>
-      </details> : null}
-      {upcoming.length ? <details className="statement-disclosure"><summary>Income calendar</summary><ul className="income-dates">
-        {upcoming.map(([date, sources]) => <li key={date}><span>{formatDate(date)}<small>{plural(sources.length, 'job')}</small></span><strong>{money(sources.reduce((sum, row) => sum + row.grossCents, 0))}<small>gross</small></strong></li>)}
-      </ul></details> : null}
-      {entries.flatMap((p) => (p.forecast?.warnings || []).map((warning) => `${people ? `${p.displayName}: ` : ''}${warning}`)).map((warning) => <p key={warning} className="statement-note">{warning}</p>)}
-    </div>
-    <div className="statement-next__instructions">
-      <div className="statement-section-heading"><h2>{admin ? 'Allocation instructions' : 'From Admin'}</h2>{onEdit ? <button type="button" className="statement-text-button" onClick={onEdit}>Edit</button> : null}</div>
-      {people ? (savedInstructions.length ? <div className="company-instructions">{savedInstructions.map((p) => <div key={p.ownerId}><Link to={`/admin/people/${p.ownerId}`}>{p.displayName}</Link><p className="preserve-lines">{p.allocationPlan.instructions}</p></div>)}</div>
-        : <p className="statement-note">Open an owner’s statement to add allocation instructions.</p>)
-        : <p className="preserve-lines">{plan?.instructions || 'No additional instructions.'}</p>}
-      {!admin && person?.commissionIncomeMonthlyCents > 0 ? <p className="statement-note">Referral income follows Admin’s instructions and is separate from employer pay dates.</p> : null}
-    </div>
-  </section>;
+export function NextFund({ person, people, admin = false }) {
+  const fund = nextFunds(people || [person]);
+  const ownerId = person?.ownerId || people?.find((p) => p.forecast?.nextDate === fund?.date)?.ownerId;
+  const to = admin ? `/admin/allocations${ownerId ? `?owner=${ownerId}` : ''}` : '/owner/allocations';
+  return <Link to={to} className="allocation-link"><span>{fund ? `Next expected income · ${formatDate(fund.date)}` : 'Plan your upcoming paychecks'}</span><strong>View paycheck allocations →</strong></Link>;
 }
 
 export function CommissionDetails({ sources }) {

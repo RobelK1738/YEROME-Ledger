@@ -22,8 +22,9 @@ part of the tracked repository.
 
 React/Vite renders one Owner statement and an Admin company statement with
 individual owner statements. Each statement pairs monthly totals with normalized
-two-week amounts, followed by the next dated fund and Admin instructions.
-Admin’s primary navigation is Statement and Owners; job, referral and assumption
+two-week amounts, followed by a link to the next expected income.
+Both roles have a separate Allocations tab for job-by-job paycheck instructions.
+Admin can choose an owner and edit their shared notes. Job, referral and assumption
 management stay in a secondary menu. Supabase Auth supplies identity. Vercel `/api` handlers
 revalidate it and return explicit role-specific DTOs. Owners cannot read other
 owners or Admin’s actual spending and internal margins.
@@ -40,9 +41,18 @@ per year; they are not half-month totals. Exact-cent residuals stay in the final
 share, and unknown inputs stay unavailable rather than becoming zero.
 Job sources, tax components and cost categories expand inside their totals.
 Owner charges and Admin operating costs are separate allowlisted breakdowns.
-When the next dated fund matches the two-week column, the page points to that
-column instead of repeating it. Staggered pay dates have their own collapsed
-allocation, including each receiving owner's share on the company statement.
+Each job's paycheck allocation shows the estimated tax reserve, the amount to
+send to YEROME (service charges plus its share of profit), and the owner share.
+Monthly amounts are spread across paychecks in proportion to expected after-tax
+income, matching the existing forecast allocation basis. The default view shows
+one next paycheck per job; a date selector uses the existing 90-day forecast.
+A local deposit preview credits employer tax withholding against the estimated
+tax reserve once. Other payroll deductions reduce the remaining take-home amount.
+Overwithholding never creates a negative reserve or an assumed refund. A deposit
+that cannot cover tax and the planned YEROME amount shows a funding gap instead
+of a take-home instruction. The preview keeps the saved gross-pay plan; changed
+gross pay requires an Admin revision. Deposit inputs are not persisted or marked
+paid, and the feature does not execute transfers.
 The next 90 days of expected income use the configured 2026 Texas tax
 assumptions, including dates beyond the calendar year.
 

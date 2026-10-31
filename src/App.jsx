@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import { Layout } from './components/Layout.jsx';
@@ -18,6 +19,9 @@ import Configuration from './pages/admin/Configuration.jsx';
 import AuditLog from './pages/admin/AuditLog.jsx';
 import OwnerHome from './pages/owner/OwnerHome.jsx';
 
+const AdminAllocations = lazy(() => import('./pages/admin/AdminAllocations.jsx'));
+const OwnerAllocations = lazy(() => import('./pages/owner/OwnerAllocations.jsx'));
+
 function OwnerShell() {
   return <Layout navItems={OWNER_NAV} />;
 }
@@ -36,6 +40,7 @@ export default function App({ recoveryCallback }) {
       <Route path="/reset-password" element={<ResetPasswordPage callback={recoveryCallback} />} />
       <Route element={<RequireRole role="admin"><Layout navItems={ADMIN_NAV} /></RequireRole>}>
         <Route path="/admin" element={<AdminOverview />} />
+        <Route path="/admin/allocations" element={<Suspense fallback={<Loading />}><AdminAllocations /></Suspense>} />
         <Route path="/admin/people" element={<PeopleList />} />
         <Route path="/admin/people/new" element={<PersonCreate />} />
         <Route path="/admin/people/referrals" element={<Referrals />} />
@@ -61,12 +66,13 @@ export default function App({ recoveryCallback }) {
       </Route>
       <Route element={<RequireRole role="owner"><OwnerShell /></RequireRole>}>
         <Route path="/owner" element={<OwnerHome />} />
+        <Route path="/owner/allocations" element={<Suspense fallback={<Loading />}><OwnerAllocations /></Suspense>} />
         <Route path="/owner/jobs" element={<Navigate to="/owner" replace />} />
-        <Route path="/owner/plan" element={<Navigate to="/owner" replace />} />
+        <Route path="/owner/plan" element={<Navigate to="/owner/allocations" replace />} />
         <Route path="/owner/payments" element={<Navigate to="/owner" replace />} />
         <Route path="/owner/commissions" element={<Navigate to="/owner" replace />} />
         <Route path="/owner/jobs/:jobId" element={<Navigate to="/owner/jobs" replace />} />
-        <Route path="/owner/paychecks" element={<Navigate to="/owner" replace />} />
+        <Route path="/owner/paychecks" element={<Navigate to="/owner/allocations" replace />} />
         <Route path="/owner/*" element={<Navigate to="/owner" replace />} />
       </Route>
       <Route path="/" element={<HomeRedirect />} />

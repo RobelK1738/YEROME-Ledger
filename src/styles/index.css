@@ -1169,7 +1169,7 @@ input[type='date'].input, input[type='month'].input { min-width: 0; }
 .statement-sheet { overflow: hidden; border: 1px solid #e8e8ed; border-radius: 18px; background: #fff; box-shadow: 0 2px 6px #00000002; }
 .statement-sheet__header, .statement-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .statement-sheet__header { padding: 22px 26px; }
-.statement-sheet h2, .statement-next h2 { font-size: 16px; font-weight: 600; letter-spacing: -.02em; }
+.statement-sheet h2 { font-size: 16px; font-weight: 600; letter-spacing: -.02em; }
 .statement-estimate { color: #6e6e73; font-size: 12px; white-space: nowrap; }
 .statement-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }
 .statement-table thead { border-block: 1px solid #efeff2; }
@@ -1195,12 +1195,6 @@ input[type='date'].input, input[type='month'].input { min-width: 0; }
 .statement-chevron { display: inline-block; font-size: 0; width: 6px; height: 6px; border-right: 1.5px solid #86868b; border-bottom: 1.5px solid #86868b; transform: rotate(45deg) translateY(-2px); }
 .statement-expand[aria-expanded=true] .statement-chevron { transform: rotate(225deg) translate(-1px, -1px); }
 .statement-sheet__footer { padding: 15px 26px; color: #6e6e73; font-size: 11px; line-height: 1.65; }
-.statement-next { display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; border: 1px solid #e8e8ed; border-radius: 18px; background: #fff; }
-.statement-next__allocation, .statement-next__instructions { padding: 24px 26px; min-width: 0; }
-.statement-next__instructions { border-left: 1px solid #efeff2; }
-.statement-next__instructions > p { margin-top: 16px; font-size: 14px; line-height: 1.75; }
-.statement-kicker { color: #6e6e73; font-size: 12px; }
-.statement-next h2.next-fund-date { margin-top: 5px; font-size: 22px; font-weight: 600; letter-spacing: -.035em; }
 .statement-text-button { border: 0; padding: 3px 0; color: #0071e3; background: none; font-size: 13px; }
 .fund-lines { margin-top: 10px; }
 .fund-lines > div { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; font-size: 13px; }
@@ -1213,15 +1207,6 @@ input[type='date'].input, input[type='month'].input { min-width: 0; }
 .statement-disclosure > summary { padding: 15px 20px; color: #515154; font-size: 13px; cursor: pointer; }
 .statement-disclosure[open] > summary { border-bottom: 1px solid #efeff2; }
 .statement-disclosure > .card { border: 0; border-radius: 0; box-shadow: none; }
-.statement-next .statement-disclosure { margin-top: 14px; border: 0; border-top: 1px solid #efeff2; border-radius: 0; }
-.statement-next .statement-disclosure > summary { padding: 13px 0 0; }
-.statement-next .statement-disclosure[open] > summary { border: 0; }
-.income-dates { list-style: none; margin-top: 12px; }
-.income-dates li { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid #efeff2; font-size: 13px; }
-.income-dates li strong { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
-.income-dates small { display: block; color: #6e6e73; margin-top: 2px; font-size: 11px; font-weight: 400; }
-.company-instructions > div { margin-top: 14px; font-size: 13px; }
-.company-instructions p { margin-top: 5px; line-height: 1.7; }
 @media (max-width: 720px) {
   .ledger-header__inner { min-height: 60px; padding: 0 18px; gap: 18px; flex-wrap: wrap; }
   .ledger-header__account { gap: 14px; }
@@ -1242,7 +1227,58 @@ input[type='date'].input, input[type='month'].input { min-width: 0; }
   .statement-row--detail { font-size: 12px; }
   .statement-row--total th, .statement-row--total td { font-size: 17px; padding-block: 18px; }
   .statement-sheet__footer { padding: 13px 16px; }
-  .statement-next { grid-template-columns: 1fr; }
-  .statement-next__allocation, .statement-next__instructions { padding: 21px 18px; }
-  .statement-next__instructions { border-left: 0; border-top: 1px solid #efeff2; }
+}
+
+/* Paycheck allocation stays a planning tool: one three-part instruction per job. */
+.allocation-link { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px 22px; border: 1px solid #e8e8ed; border-radius: 14px; padding: 20px 24px; background: #fff; font-size: 13px; color: #6e6e73; text-decoration: none; }
+.allocation-link:hover { text-decoration: none; border-color: #b8cee9; }
+.allocation-link strong { color: #0071e3; font-weight: 500; }
+.allocation-owner { font-size: 16px; font-weight: 550; }
+.allocation-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 18px; }
+.allocation-toolbar h2 { font-size: 19px; font-weight: 600; letter-spacing: -.025em; }
+.allocation-toolbar p { margin-top: 5px; color: #6e6e73; font-size: 13px; }
+.allocation-toolbar > .field { width: 245px; }
+.allocation-intro { color: #6e6e73; font-size: 13px; line-height: 1.7; }
+.allocation-notes { padding: 22px 24px; border: 1px solid #e8e8ed; border-radius: 16px; background: #fff; }
+.allocation-notes h2 { font-size: 15px; font-weight: 600; }
+.allocation-notes > p { margin-top: 12px; font-size: 14px; line-height: 1.75; }
+.paycheck-list { display: flex; flex-direction: column; gap: 18px; }
+.paycheck-card { overflow: hidden; border: 1px solid #e8e8ed; border-radius: 18px; background: #fff; }
+.paycheck-card__header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 22px 24px 14px; }
+.paycheck-card__header h2 { font-size: 16px; font-weight: 600; letter-spacing: -.02em; }
+.paycheck-card__header p { margin-top: 5px; color: #6e6e73; font-size: 12px; line-height: 1.6; }
+.paycheck-card__header button { flex-shrink: 0; }
+.paycheck-basis { padding: 0 24px 14px; font-size: 11px; color: #6e6e73; }
+.paycheck-steps { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid #efeff2; }
+.paycheck-steps li { padding: 20px 24px; border-right: 1px solid #efeff2; }
+.paycheck-steps li:last-child { border: 0; background: #f0f6ff; }
+.paycheck-step-label { display: block; font-size: 12px; color: #515154; }
+.paycheck-steps strong { display: block; margin-top: 8px; font-size: 23px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.035em; }
+.paycheck-steps li:last-child strong { color: #0062c4; }
+.paycheck-steps small { display: block; margin-top: 5px; font-size: 11px; color: #6e6e73; line-height: 1.5; }
+.paycheck-steps--short li:last-child { background: #fff4f2; }
+.paycheck-steps--short li:last-child strong { color: #b42318; }
+.paycheck-card > .notice, .paycheck-card > .statement-input-note { margin: 0 24px 18px; }
+.paycheck-explanation { border-top: 1px solid #efeff2; }
+.paycheck-explanation > summary { padding: 15px 24px; font-size: 12px; color: #6e6e73; cursor: pointer; }
+.paycheck-explanation .fund-lines { margin: 0 24px 12px; }
+.paycheck-explanation > p { margin: 0 24px 20px; }
+.deposit-form { padding: 18px 24px; margin-bottom: 16px; background: #fafafa; border-block: 1px solid #efeff2; }
+.deposit-form > .btn-group { margin-top: 14px; }
+.deposit-form > .notice { margin-top: 12px; }
+@media (max-width: 720px) {
+  .allocation-toolbar { padding-inline: 6px; }
+  .allocation-toolbar > .field { width: 100%; }
+  .allocation-intro { padding-inline: 6px; }
+  .allocation-notes { padding: 20px 18px; }
+  .paycheck-card__header { padding: 20px 16px 12px; flex-wrap: wrap; gap: 8px; }
+  .paycheck-basis { padding: 0 16px 12px; }
+  .paycheck-steps li { padding: 16px 10px; }
+  .paycheck-step-label { font-size: 11px; }
+  .paycheck-steps strong { font-size: 19px; }
+  .paycheck-steps small { font-size: 10px; }
+  .paycheck-explanation > summary { padding: 15px 16px; }
+  .paycheck-explanation .fund-lines { margin-inline: 16px; }
+  .paycheck-explanation > p { margin-inline: 16px; }
+  .deposit-form { padding: 18px 16px; }
 }
