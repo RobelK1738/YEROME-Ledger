@@ -1,26 +1,23 @@
 import { useAsync } from '../../hooks/useAsync.js';
 import { getMyStatement } from '../../lib/data/v2.js';
 import { PageHeader } from '../../components/ui/PageHeader.jsx';
-import { StatCard, StatGrid } from '../../components/ui/StatCard.jsx';
 import { PageSkeleton } from '../../components/ui/Loading.jsx';
 import { ErrorState } from '../../components/ui/ErrorState.jsx';
-import { ProjectionStory, CommissionSources } from '../../components/planning/ProjectionStory.jsx';
-import { money, formatDate } from '../../lib/presentation/format.js';
+import { Breakdown, NextFund } from '../../components/planning/Statement.jsx';
+import { plural } from '../../lib/presentation/format.js';
 
 export default function OwnerHome() {
-  const { data: p, loading, error, refresh } = useAsync(getMyStatement, []);
-  if (loading) return <PageSkeleton label="Loading your projection…" />;
+  const { data: person, loading, error, refresh } = useAsync(getMyStatement, []);
+  if (loading) return <PageSkeleton label="Loading your statement…" />;
   if (error) return <ErrorState error={error} onRetry={refresh} />;
-  const commission = p.commissionIncomeMonthlyCents || 0;
+  const jobs = person.activeJobCount;
+  const referrals = (person.commissionSources || []).filter((row) => row.currentlyEarning).length;
   return <>
-    <PageHeader title={`${p.displayName}’s financial picture`} subtitle="Your jobs, projected income and split, with a clear plan for what comes next." />
-    <StatGrid columns={4}>
-      <StatCard label="Jobs in projection" value={p.activeJobCount} icon="briefcase" />
-      <StatCard label="Your projected income / month" value={money(p.myShareMonthlyCents == null ? null : p.myShareMonthlyCents + commission)} basis="estimate" emphasis hint="Job share + referral commissions" />
-      <StatCard label="Commission income / month" value={money(commission)} basis="estimate" />
-      <StatCard label="Next expected job income" value={p.forecast?.nextDate ? formatDate(p.forecast.nextDate) : 'Date needed'} hint={p.forecast?.nextNetCents != null ? `${money(p.forecast.nextNetCents)} after estimated taxes` : 'Based on submitted job schedules'} />
-    </StatGrid>
-    <ProjectionStory person={p} />
-    {p.commissionSources?.length ? <CommissionSources sources={p.commissionSources} /> : null}
+    <PageHeader title="Your statement" subtitle={person.displayName} />
+    <p className="statement-context">{plural(jobs, 'job')}{referrals ? ` · ${plural(referrals, 'commission source')}` : ''}<span>Based on your saved pay details</span></p>
+    {!person.projectionAvailable ? <p className="statement-input-note">{!person.stateSupported ? 'Tax assumptions are available for Texas only.' : 'Some job pay details are missing. Admin can complete them.'}</p> : null}
+    <Breakdown person={person} />
+    <NextFund person={person} />
+    <p className="statement-method">All amounts are estimates. Jobs count immediately; start dates are for reference. Tax reserve uses the configured 2026 Texas assumptions.</p>
   </>;
 }

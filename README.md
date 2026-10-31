@@ -20,9 +20,11 @@ part of the tracked repository.
 
 ## Architecture
 
-React/Vite renders the Admin financial overview, Owners, Jobs, Projections &
-allocation, and the Owner financial picture, My Jobs, What’s next and optional
-Commission projections. Supabase Auth supplies identity. Vercel `/api` handlers
+React/Vite renders one Owner statement and an Admin company statement with
+individual owner statements. Each statement pairs monthly totals with normalized
+two-week amounts, followed by the next dated fund and Admin instructions.
+Admin’s primary navigation is Statement and Owners; job, referral and assumption
+management stay in a secondary menu. Supabase Auth supplies identity. Vercel `/api` handlers
 revalidate it and return explicit role-specific DTOs. Owners cannot read other
 owners or Admin’s actual spending and internal margins.
 
@@ -33,6 +35,9 @@ paycheck records. Every saved, unpaused job contributes immediately as if it has
 dates never delay, prorate or suppress estimates. Net forecasts allocate each
 owner’s combined annual tax rate to expected gross income. Suggested fund allocations scale monthly assumptions
 to the next inflow and preserve cents. They are projections, not payroll facts.
+Monthly and two-week totals share one table. Two-week amounts use 26 periods
+per year; they are not half-month totals. Exact-cent residuals stay in the final
+share, and unknown inputs stay unavailable rather than becoming zero.
 The next 90 days of expected income use the configured 2026 Texas tax
 assumptions, including dates beyond the calendar year.
 
